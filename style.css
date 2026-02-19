@@ -1,0 +1,256 @@
+/* Make URL input mono-like */
+#civitai-ext #civitai-url-input-0 textarea,
+#civitai-ext #civitai-url-input-1 textarea,
+#civitai-ext #civitai-url-input-2 textarea,
+#civitai-ext #civitai-url-input-3 textarea,
+#civitai-ext #civitai-url-input-4 textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                 "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+}
+
+/* Group styling */
+#civitai-ext .gr-group {
+    border: 1px solid #1f2937 !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    margin-bottom: 2px !important;
+}
+
+/* Keep hidden control buttons out of sight */
+#civitai-ext .civitai-hidden-controls {
+    display: none !important;
+}
+
+#civitai-ext .civitai-tabstrip {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 6px 8px 0 8px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid #1f2937;
+    border-radius: 12px 12px 0 0;
+    background: rgba(2, 6, 23, 0.35);
+    scrollbar-width: thin;
+}
+
+#civitai-ext .civitai-tabstrip > * {
+    flex: 0 0 auto;
+}
+
+#civitai-ext .civitai-tabstrip::-webkit-scrollbar {
+    height: 10px;
+}
+
+#civitai-ext .civitai-tabstrip::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.25);
+    border-radius: 999px;
+    border: 2px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+}
+
+#civitai-ext .civitai-tabstrip::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.35);
+    background-clip: padding-box;
+}
+
+#civitai-ext .civitai-tab {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 12px;
+    background: #0f172a;
+    border: 1px solid #1f2937;
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    position: relative;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    z-index: 1;
+}
+
+#civitai-ext .civitai-tab:hover {
+    background: #111d33;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+#civitai-ext .civitai-tab.active {
+    background: #111827;
+    border-color: #334155;
+    color: #f1f5f9;
+    box-shadow: inset 0 1px 0 rgba(96, 165, 250, 0.55);
+    z-index: 2;
+}
+
+#civitai-ext .civitai-tab-icon {
+    display: none;
+}
+
+#civitai-ext .civitai-tab-title {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.2px;
+}
+
+#civitai-ext .civitai-tab-close {
+    margin-left: 8px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: rgba(148, 163, 184, 0.85);
+    transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+    opacity: 0;
+}
+
+#civitai-ext .civitai-tab:hover .civitai-tab-close,
+#civitai-ext .civitai-tab.active .civitai-tab-close {
+    opacity: 1;
+}
+
+#civitai-ext .civitai-tab-close:hover {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(248, 113, 113, 0.45);
+    color: rgba(248, 113, 113, 0.98);
+}
+
+#civitai-ext .civitai-tab-close-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+#civitai-ext .civitai-tab-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    background: transparent;
+    border: 1px solid #1f2937;
+    border-radius: 12px;
+    color: #94a3b8;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#civitai-ext .civitai-tab-add:hover {
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(96, 165, 250, 0.55);
+    color: rgba(96, 165, 250, 0.98);
+}
+
+#civitai-ext .civitai-tab-add-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* Reduce vertical spacing */
+#civitai-ext .gr-group + .gr-row,
+#civitai-ext .gr-group ~ .gr-row {
+    margin-top: 2px !important;
+    padding-top: 0 !important;
+}
+
+#civitai-ext hr {
+    margin: 2px 0 !important;
+}
+
+/* Buttons */
+#civitai-ext .btn-load .gr-button,
+#civitai-ext .btn-load button {
+    background: linear-gradient(180deg, rgba(96,165,250,0.35), rgba(29,78,216,0.35));
+    border: 1px solid rgba(96,165,250,0.55);
+    color: #e2e8f0;
+    padding: 6px 14px;
+    height: 36px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+}
+
+#civitai-ext .btn-load .gr-button:hover,
+#civitai-ext .btn-load button:hover {
+    background: rgba(30,58,138,0.55);
+    border-color: rgba(29,78,216,0.75);
+    color: #fff;
+}
+
+#civitai-ext .btn-load {
+    flex: 1 1 auto;
+}
+
+#civitai-ext .btn-load .gr-button,
+#civitai-ext .btn-load button {
+    width: 100%;
+    justify-content: center;
+    font-weight: 600;
+}
+
+#civitai-ext .btn-refine-orange .gr-button,
+#civitai-ext .btn-refine-orange button {
+    background: #f97316;
+    border: 1px solid #fb923c;
+    color: #0b0f19;
+    padding: 6px 14px;
+    height: 36px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#civitai-ext .btn-refine-orange .gr-button:hover,
+#civitai-ext .btn-refine-orange button:hover {
+    background: #fb923c;
+    border-color: #fdba74;
+}
+
+#civitai-ext .btn-download .gr-button,
+#civitai-ext .btn-download button {
+    width: 100%;
+    justify-content: center;
+    font-weight: 600;
+    height: 42px;
+    border-radius: 12px;
+}
+
+#civitai-ext .download-progress .progress-bar {
+    height: 16px;
+    background: #0f172a;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#civitai-ext .download-progress .progress-fill {
+    height: 100%;
+    background: #3b82f6;
+    transition: width 0.2s ease;
+}
+
+#civitai-ext .content-center {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 420px;
+}
