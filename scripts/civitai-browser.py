@@ -288,6 +288,21 @@ def get_trigger_words_for_version(version):
     return version.get("trainedWords", []) if version else []
 
 
+def _has_thumbnail(model):
+    skip_types = {"video"}
+    skip_ext = {".mp4", ".webm", ".gif", ".mov", ".avi"}
+    for ver in model.get("modelVersions", [])[:1]:
+        for img in ver.get("images", []):
+            if img.get("type", "image").lower() in skip_types:
+                continue
+            url = img.get("url", "")
+            ext = os.path.splitext(url.split("?")[0])[1].lower()
+            if ext in skip_ext:
+                continue
+            return True
+    return False
+
+
 def build_gallery_data(items):
     skip_types = {"video"}
     skip_ext = {".mp4", ".webm", ".gif", ".mov", ".avi"}
@@ -944,15 +959,16 @@ def make_panel_components(i, api_key_state):
 
         def do_search(q, mt, srt, levels, api_key, creator, per, sd):
             items, meta, next_page, first_page = search_first_page(q, mt, srt, levels, api_key, creator, per)
-            total = meta.get("totalItems", len(items))
-            page_lbl = f"Page 1: {len(items)} of {total} results" if items else "No results found."
+            visible_items = [m for m in items if _has_thumbnail(m)]
+            total = meta.get("totalItems", len(visible_items))
+            page_lbl = f"Page 1: {len(visible_items)} of {total} results" if visible_items else "No results found."
 
             new_sd = dict(sd)
             new_sd.update(
                 {
-                    "items": items,
+                    "items": visible_items,
                     "metadata": meta,
-                    "all_items": items,
+                    "all_items": visible_items,
                     "next_page": next_page,
                     "first_page": first_page,
                     "query": q,
@@ -961,7 +977,7 @@ def make_panel_components(i, api_key_state):
             )
 
             return (
-                build_gallery_data(items),
+                build_gallery_data(visible_items),
                 gr.update(value=page_lbl, visible=True),
                 EMPTY_DETAIL,
                 build_trigger_words_html([]),
@@ -987,13 +1003,14 @@ def make_panel_components(i, api_key_state):
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(next_url, headers)
-            all_items = (sd.get("all_items") or []) + items
+            visible_items = [m for m in items if _has_thumbnail(m)]
+            all_items = (sd.get("all_items") or []) + visible_items
             total = meta.get("totalItems", 0)
             page_lbl = f"{len(all_items)} of {total} loaded" if total else f"{len(all_items)} loaded"
 
             new_sd = dict(sd)
-            new_sd.update({"items": items, "metadata": meta, "all_items": all_items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(items), gr.update(value=page_lbl, visible=True), EMPTY_DETAIL, build_trigger_words_html([]), gr.update(visible=False, choices=[], value=None), new_sd
+            new_sd.update({"items": visible_items, "metadata": meta, "all_items": all_items, "next_page": next2, "selected_index": 0})
+            return build_gallery_data(visible_items), gr.update(value=page_lbl, visible=True), EMPTY_DETAIL, build_trigger_words_html([]), gr.update(visible=False, choices=[], value=None), new_sd
 
         next_btn.click(
             fn=do_next,
@@ -1008,12 +1025,13 @@ def make_panel_components(i, api_key_state):
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(first_url, headers)
-            total = meta.get("totalItems", len(items))
-            page_lbl = f"Page 1: {len(items)} of {total} results" if items else "No results."
+            visible_items = [m for m in items if _has_thumbnail(m)]
+            total = meta.get("totalItems", len(visible_items))
+            page_lbl = f"Page 1: {len(visible_items)} of {total} results" if visible_items else "No results."
 
             new_sd = dict(sd)
-            new_sd.update({"items": items, "metadata": meta, "all_items": items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(items), gr.update(value=page_lbl, visible=True), EMPTY_DETAIL, build_trigger_words_html([]), gr.update(visible=False, choices=[], value=None), new_sd
+            new_sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next2, "selected_index": 0})
+            return build_gallery_data(visible_items), gr.update(value=page_lbl, visible=True), EMPTY_DETAIL, build_trigger_words_html([]), gr.update(visible=False, choices=[], value=None), new_sd
 
         prev_btn.click(
             fn=do_prev,
@@ -1025,9 +1043,10 @@ def make_panel_components(i, api_key_state):
             all_items = sd.get("all_items", []) or []
             if not all_items:
                 items, meta, next_page, first_page = search_first_page(q, "All", "Most Downloaded", ["Safe"], api_key, "— All —", "AllTime")
-                all_items = items
+                visible_items = [m for m in items if _has_thumbnail(m)]
+                all_items = visible_items
                 sd = dict(sd)
-                sd.update({"items": items, "metadata": meta, "all_items": items, "next_page": next_page, "first_page": first_page, "selected_index": 0})
+                sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next_page, "first_page": first_page, "selected_index": 0})
 
             if not q.strip():
                 matched = all_items
