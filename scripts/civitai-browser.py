@@ -301,21 +301,20 @@ def _has_thumbnail(model):
 
 
 def build_gallery_data(items):
-    skip_types = {"video"}
-    skip_ext = {".mp4", ".webm", ".gif", ".mov", ".avi"}
     gallery = []
     for m in items:
-        thumb = None
-        for ver in m.get("modelVersions", [])[:1]:
-            for img in ver.get("images", []):
-                if img.get("type", "image").lower() in skip_types:
-                    continue
-                url = img.get("url", "")
-                ext = os.path.splitext(url.split("?")[0])[1].lower()
-                if ext in skip_ext:
-                    continue
-                thumb = url
-                break
+        versions = m.get("modelVersions", []) or []
+        sel_id = m.get("_civitai_selected_version_id", None)
+        chosen = None
+        if sel_id is not None:
+            for v in versions:
+                if str(v.get("id")) == str(sel_id):
+                    chosen = v
+                    break
+        if chosen is None and versions:
+            chosen = versions[0]
+
+        thumb = _pick_version_preview_image_url(chosen or {})
         if thumb:
             gallery.append((thumb, m.get("name", "?")))
     return gallery
@@ -438,15 +437,6 @@ def get_model_detail_html(model, version=None):
         rawdesc = version.get("description") or ""
     safedesc = sanitize_description_html(rawdesc)
 
-    preview_url = _pick_version_preview_image_url(version or {})
-    preview_html = ""
-    if preview_url:
-        preview_html = (
-            "<div style='margin:0 0 10px'>"
-            f"<img src='{preview_url}' style='width:100%;max-height:260px;object-fit:cover;border-radius:10px;border:1px solid #1f2937'/>"
-            "</div>"
-        )
-
     desc_html = (
         "<details style='margin-top:10px'>"
         "<summary style='cursor:pointer;padding:8px 12px;background:#1e2a1e;border-radius:6px;"
@@ -535,7 +525,6 @@ def get_model_detail_html(model, version=None):
     return (
         "<div style='padding:12px 14px;font-family:sans-serif;color:#e0e0e0'>"
         "<div style='margin-bottom:10px'>"
-        f"{preview_html}"
         "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{model.get('name','NA')}</h3>"
         f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
@@ -949,23 +938,32 @@ def make_panel_components(i, api_key_state):
             items = sd.get("items", [])
             idx = sd.get("selected_index", 0)
             if not items or idx >= len(items):
-                return EMPTY_DETAIL, build_trigger_words_html([]), ""
+                return [], EMPTY_DETAIL, build_trigger_words_html([]), "", sd
 
             model = items[idx]
             v = get_version_by_choice(model, vc)
             mid = model.get("id", "")
             vid = (v or {}).get("id")
             sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            m2 = dict(model)
+            m2["_civitai_selected_version_id"] = vid
+            items2 = list(items)
+            items2[idx] = m2
+            sd2 = dict(sd)
+            sd2["items"] = items2
+
             return (
-                get_model_detail_html(model, v),
+                build_gallery_data(items2),
+                get_model_detail_html(m2, v),
                 build_trigger_words_html(get_trigger_words_for_version(v)),
                 sel_url,
+                sd2,
             )
 
         version_selector.change(
             fn=on_version_change,
             inputs=[version_selector, search_data],
-            outputs=[model_info, trigger_html, selected_url],
+            outputs=[gallery, model_info, trigger_html, selected_url, search_data],
         )
 
         def load_from_url(url, api_key):
@@ -1003,11 +1001,13 @@ def make_panel_components(i, api_key_state):
             mid = model.get("id", "")
             vid = (selected_ver or {}).get("id")
             sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            m2 = dict(model)
+            m2["_civitai_selected_version_id"] = vid
 
             new_sd = {
-                "items": [model],
+                "items": [m2],
                 "metadata": {"totalItems": 1},
-                "all_items": [model],
+                "all_items": [m2],
                 "next_page": "",
                 "first_page": "",
                 "query": "",
@@ -1015,12 +1015,12 @@ def make_panel_components(i, api_key_state):
             }
 
             return (
-                build_gallery_data([model]),
+                build_gallery_data([m2]),
                 gr.update(value=f"Loaded: {model.get('name','?')}", visible=True),
                 gr.update(choices=ver_choices, value=ver_val, visible=True, interactive=len(ver_choices) > 1),
-                get_model_detail_html(model, selected_ver),
+                get_model_detail_html(m2, selected_ver),
                 build_trigger_words_html(get_trigger_words_for_version(selected_ver)),
-                build_open_link_html(model),
+                build_open_link_html(m2),
                 sel_url,
                 new_sd,
             )
