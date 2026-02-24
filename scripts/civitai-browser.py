@@ -287,7 +287,7 @@ def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_valu
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
     include_nsfw = any(lvl in content_levels for lvl in ["PG-13", "R", "X", "XXX"])
     params = {
-        "limit": 100,
+        "limit": 20,
         "sort": sort,
         "period": period,
         "nsfw": str(include_nsfw).lower(),
@@ -932,7 +932,7 @@ def _download_get(url, headers, cancel_event, stream=False, timeout=(10, 5)):
 def poll_download(panel_id):
     job = _download_job_snapshot(panel_id)
     if not job:
-        return gr.update(), gr.update()
+        return gr.update(), gr.update(), gr.update(active=False)
 
     filename = job.get("filename") or ""
     status = job.get("status", "")
@@ -941,18 +941,21 @@ def poll_download(panel_id):
     else:
         progress_html = ""
 
+    finished = bool(job.get("finished"))
+    timer_update = gr.update(active=(not finished))
+
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         live = _DOWNLOAD_JOBS.get(key) or {}
         last_progress = live.get("ui_last_progress", None)
         last_status = live.get("ui_last_status", None)
         if last_progress == progress_html and last_status == status:
-            return gr.update(), gr.update()
+            return gr.update(), gr.update(), timer_update
         live["ui_last_progress"] = progress_html
         live["ui_last_status"] = status
         _DOWNLOAD_JOBS[key] = live
 
-    return gr.update(value=progress_html), gr.update(value=status)
+    return gr.update(value=progress_html), gr.update(value=status), timer_update
 
 
 def _download_worker(panel_id, model, version, api_key):
@@ -1067,12 +1070,12 @@ def start_download(search_data, version_choice, api_key, panel_id):
     items = search_data.get("items", [])
     idx = search_data.get("selected_index", 0)
     if not items or idx >= len(items):
-        return "", "No model selected."
+        return "", "No model selected.", gr.update(active=False)
 
     model = items[idx]
     version = get_version_by_choice(model, version_choice)
     if not version:
-        return "", "No version found."
+        return "", "No version found.", gr.update(active=False)
 
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
@@ -1100,7 +1103,7 @@ def start_download(search_data, version_choice, api_key, panel_id):
         _DOWNLOAD_JOBS[key] = job
         worker.start()
 
-    return _render_progress_html(0, 0, 0, filename), f"Starting download: {filename}"
+    return _render_progress_html(0, 0, 0, filename), f"Starting download: {filename}", gr.update(active=True)
 
 
 def stop_download(panel_id):
@@ -1108,10 +1111,10 @@ def stop_download(panel_id):
     with _DOWNLOAD_JOBS_LOCK:
         job = _DOWNLOAD_JOBS.get(key)
         if not job or job.get("finished") or not job.get("thread") or not job["thread"].is_alive():
-            return "", "No active download."
+            return "", "No active download.", gr.update(active=False)
         job["cancel_event"].set()
         job["status"] = "Stopping current download..."
-    return "", "Stopping current download..."
+    return "", "Stopping current download...", gr.update(active=True)
 
 
 # =============================================================================
@@ -1260,7 +1263,7 @@ def make_panel_components(i, api_key_state):
                     lines=3,
                     placeholder="Download status appears here.",
                 )
-                dl_poll_timer = gr.Timer(1.0)
+                dl_poll_timer = gr.Timer(1.0, active=False)
 
         # State
         panel_id_state = gr.State(i)
@@ -1608,17 +1611,17 @@ def make_panel_components(i, api_key_state):
         download_btn.click(
             fn=start_download,
             inputs=[search_data, version_selector, api_key_state, panel_id_state],
-            outputs=[dl_progress_html, dl_status],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer],
         )
         stop_btn.click(
             fn=stop_download,
             inputs=[panel_id_state],
-            outputs=[dl_progress_html, dl_status],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer],
         )
         dl_poll_timer.tick(
             fn=poll_download,
             inputs=[panel_id_state],
-            outputs=[dl_progress_html, dl_status],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer],
         )
 
     return col
