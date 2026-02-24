@@ -63,15 +63,12 @@
                 if (!url) return;
 
                 const tabCount = getTabCount();
-                const activeIdx = getActiveTabIndex();
-
                 if (tabCount < MAX_TABS) {
                     clickById("civitai-add-btn");
                     const newIndex = tabCount;
                     setTimeout(() => openUrlInTab(newIndex, url), 350);
                 } else {
-                    const target = (activeIdx + 1) % tabCount;
-                    openUrlInTab(target, url);
+                    window.alert(`Maximum tabs reached (${MAX_TABS}). Close a tab to send the model to a new one.`);
                 }
             });
         }
