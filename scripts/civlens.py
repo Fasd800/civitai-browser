@@ -1,4 +1,4 @@
-# civitai-browser.py
+# CivLens
 
 import gradio as gr
 import requests
@@ -136,7 +136,7 @@ def save_settings(settings: dict):
             json.dump(settings, f, indent=2, ensure_ascii=False)
         return True
     except Exception as e:
-        print(f"[CivitaiBrowser] Error saving settings: {e}")
+        print(f"[CivLens] Error saving settings: {e}")
         return False
 
 
@@ -212,7 +212,7 @@ def _fetch_url(url, headers):
         meta = data.get("metadata", {})
         return data.get("items", []), meta, meta.get("nextPage", "")
     except Exception as e:
-        print(f"[CivitaiBrowser] _fetch_url error: {e}")
+        print(f"[CivLens] _fetch_url error: {e}")
         return [], {}, ""
 
 
@@ -796,38 +796,38 @@ def render_tab_bar(count, active):
     tabs_html = ""
     for i in range(count):
         is_active = i == active
-        tab_class = "civitai-tab active" if is_active else "civitai-tab"
+        tab_class = "civlens-tab active" if is_active else "civlens-tab"
 
         close_btn = ""
         if count > 1:
             close_btn = (
                 "<span "
-                "class='civitai-tab-close' "
+                "class='civlens-tab-close' "
                 "title='Close tab' "
-                f"onclick=\"event.stopPropagation();var el=document.getElementById('civitai-close-btn-{i}');if(el) el.click();\""
+                f"onclick=\"event.stopPropagation();var el=document.getElementById('civlens-close-btn-{i}');if(el) el.click();\""
                 "aria-label='Close tab'"
-                "><span class='civitai-tab-close-icon'>×</span></span>"
+                "><span class='civlens-tab-close-icon'>×</span></span>"
             )
 
         tabs_html += (
             f"<div class='{tab_class}' "
             f"data-tab-index='{i}' "
             f"title='Search {i+1}' "
-            f"onclick=\"var el=document.getElementById('civitai-switch-btn-{i}');if(el) el.click();\" "
-            f"onauxclick=\"if(event.button===1){{event.preventDefault();var el=document.getElementById('civitai-close-btn-{i}');if(el) el.click();}}\""
-            f"><span class='civitai-tab-icon' aria-hidden='true'></span><span class='civitai-tab-title'>Search {i+1}</span>{close_btn}</div>"
+            f"onclick=\"var el=document.getElementById('civlens-switch-btn-{i}');if(el) el.click();\" "
+            f"onauxclick=\"if(event.button===1){{event.preventDefault();var el=document.getElementById('civlens-close-btn-{i}');if(el) el.click();}}\""
+            f"><span class='civlens-tab-icon' aria-hidden='true'></span><span class='civlens-tab-title'>Search {i+1}</span>{close_btn}</div>"
         )
 
     if count < MAX_TABS:
         tabs_html += (
-            "<div class='civitai-tab-add' "
+            "<div class='civlens-tab-add' "
             "title='New tab' "
-            "onclick=\"var el=document.getElementById('civitai-add-btn');if(el) el.click();\" "
+            "onclick=\"var el=document.getElementById('civlens-add-btn');if(el) el.click();\" "
             "aria-label='New tab'"
-            "><span class='civitai-tab-add-icon'>+</span></div>"
+            "><span class='civlens-tab-add-icon'>+</span></div>"
         )
 
-    return f"<div class='civitai-tabstrip'>{tabs_html}</div>"
+    return f"<div class='civlens-tabstrip'>{tabs_html}</div>"
 
 
 EMPTY_DETAIL = (
@@ -1121,7 +1121,7 @@ def stop_download(panel_id):
 # UI PANELS
 # =============================================================================
 def make_panel_components(i, api_key_state):
-    with gr.Column(visible=i == 0, elem_id=f"civitai-panel-{i}") as col:
+    with gr.Column(visible=i == 0, elem_id=f"civlens-panel-{i}") as col:
         with gr.Group():
             gr.Markdown("Filters or Load by URL")
             with gr.Row():
@@ -1129,10 +1129,10 @@ def make_panel_components(i, api_key_state):
                     label="Model URL",
                     show_label=False,
                     placeholder="Paste a CivitAI model or version URL",
-                    elem_id=f"civitai-url-input-{i}",
+                    elem_id=f"civlens-url-input-{i}",
                     scale=5,
                 )
-                url_btn = gr.Button("🔗 Load from URL", variant="secondary", scale=1, min_width=120, elem_id=f"civitai-url-btn-{i}")
+                url_btn = gr.Button("🔗 Load from URL", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-url-btn-{i}")
 
             url_status = gr.Textbox(
                 label="",
@@ -1205,7 +1205,7 @@ def make_panel_components(i, api_key_state):
                     label="Keyword filter",
                     show_label=False,
                     placeholder="Filter by keyword (character name, series name...)",
-                    elem_id=f"civitai-query-{i}",
+                    elem_id=f"civlens-query-{i}",
                     scale=5,
                 )
                 refine_btn = gr.Button("✨ Refine results", variant="secondary", scale=1, min_width=110, elem_classes=["btn-refine-orange"])
@@ -1221,7 +1221,7 @@ def make_panel_components(i, api_key_state):
                     columns=2,
                     rows=4,
                     height=480,
-                    elem_id=f"civitai-gallery-{i}",
+                    elem_id=f"civlens-gallery-{i}",
                     object_fit="cover",
                     interactive=False,
                     allow_preview=True,
@@ -1246,14 +1246,14 @@ def make_panel_components(i, api_key_state):
                 )
                 trigger_html = gr.HTML(build_trigger_words_html([]))
                 model_body_html = gr.HTML(EMPTY_DETAIL)
-                selected_url = gr.Textbox(value="", visible=False, elem_id=f"civitai-selected-url-{i}")
+                selected_url = gr.Textbox(value="", visible=False, elem_id=f"civlens-selected-url-{i}")
 
                 gr.HTML('<hr style="border-color:#1f2937;margin:0">')
 
                 with gr.Row():
                     download_btn = gr.Button("⬇️ Download model", variant="primary", scale=3, min_width=220, elem_classes=["btn-download"])
                     stop_btn = gr.Button("⏹️ Stop download", variant="secondary", scale=1, min_width=140)
-                    send_tab_btn = gr.Button("📤 Send to new tab", variant="secondary", scale=1, min_width=170, elem_id=f"civitai-send-tab-{i}")
+                    send_tab_btn = gr.Button("📤 Send to new tab", variant="secondary", scale=1, min_width=170, elem_id=f"civlens-send-tab-{i}")
                 dl_progress_html = gr.HTML("")
 
                 dl_status = gr.Textbox(
@@ -1646,24 +1646,24 @@ CSS = _load_css()
 def on_ui_tabs():
     settings = load_settings()
 
-    with gr.Blocks(analytics_enabled=False, css=CSS, elem_id="civitai-ext") as civitai_tab:
+    with gr.Blocks(analytics_enabled=False, css=CSS, elem_id="civlens-ext") as civitai_tab:
         api_key_state = gr.State(settings.get("api_key", ""))
 
         tab_count = gr.State(1)
         active_tab = gr.State(0)
 
         with gr.Tabs():
-            with gr.TabItem("Civitai Browser"):
+            with gr.TabItem("CivLens"):
                 tab_bar = gr.HTML(render_tab_bar(1, 0))
 
                 # Hidden-but-rendered controls (kept for JS-driven switching)
-                with gr.Row(elem_classes=["civitai-hidden-controls"]):
-                    add_btn = gr.Button("add", elem_id="civitai-add-btn", visible=False)
+                with gr.Row(elem_classes=["civlens-hidden-controls"]):
+                    add_btn = gr.Button("add", elem_id="civlens-add-btn", visible=False)
                     close_btns = [
-                        gr.Button(f"close-{i}", elem_id=f"civitai-close-btn-{i}", visible=False) for i in range(MAX_TABS)
+                        gr.Button(f"close-{i}", elem_id=f"civlens-close-btn-{i}", visible=False) for i in range(MAX_TABS)
                     ]
                     switch_btns = [
-                        gr.Button(f"switch-{i}", elem_id=f"civitai-switch-btn-{i}", visible=False) for i in range(MAX_TABS)
+                        gr.Button(f"switch-{i}", elem_id=f"civlens-switch-btn-{i}", visible=False) for i in range(MAX_TABS)
                     ]
 
                 panels = [make_panel_components(i, api_key_state) for i in range(MAX_TABS)]
@@ -1774,7 +1774,7 @@ def on_ui_tabs():
                     outputs=[favorites_list, creator_status],
                 )
 
-    return [(civitai_tab, "Civitai Browser", "civitai_browser")]
+    return [(civitai_tab, "CivLens", "civlens")]
 
 
 script_callbacks.on_ui_tabs(on_ui_tabs)

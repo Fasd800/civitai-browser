@@ -1,4 +1,4 @@
-# CivitAI Browser
+# CivLens
 
 An extension that lets you browse, filter, preview, and download CivitAI models directly from the UI.
 

@@ -1,16 +1,16 @@
 /* Make URL input mono-like */
-#civitai-ext #civitai-url-input-0 textarea,
-#civitai-ext #civitai-url-input-1 textarea,
-#civitai-ext #civitai-url-input-2 textarea,
-#civitai-ext #civitai-url-input-3 textarea,
-#civitai-ext #civitai-url-input-4 textarea {
+#civlens-ext #civlens-url-input-0 textarea,
+#civlens-ext #civlens-url-input-1 textarea,
+#civlens-ext #civlens-url-input-2 textarea,
+#civlens-ext #civlens-url-input-3 textarea,
+#civlens-ext #civlens-url-input-4 textarea {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
                  "Liberation Mono", "Courier New", monospace;
     font-size: 12px;
 }
 
 /* Group styling */
-#civitai-ext .gr-group {
+#civlens-ext .gr-group {
     border: 1px solid #1f2937 !important;
     border-radius: 8px !important;
     padding: 10px !important;
@@ -18,11 +18,11 @@
 }
 
 /* Keep hidden control buttons out of sight */
-#civitai-ext .civitai-hidden-controls {
+#civlens-ext .civlens-hidden-controls {
     display: none !important;
 }
 
-#civitai-ext .civitai-tabstrip {
+#civlens-ext .civlens-tabstrip {
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
@@ -38,27 +38,27 @@
     scrollbar-width: thin;
 }
 
-#civitai-ext .civitai-tabstrip > * {
+#civlens-ext .civlens-tabstrip > * {
     flex: 0 0 auto;
 }
 
-#civitai-ext .civitai-tabstrip::-webkit-scrollbar {
+#civlens-ext .civlens-tabstrip::-webkit-scrollbar {
     height: 10px;
 }
 
-#civitai-ext .civitai-tabstrip::-webkit-scrollbar-thumb {
+#civlens-ext .civlens-tabstrip::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.25);
     border-radius: 999px;
     border: 2px solid rgba(0, 0, 0, 0);
     background-clip: padding-box;
 }
 
-#civitai-ext .civitai-tabstrip::-webkit-scrollbar-thumb:hover {
+#civlens-ext .civlens-tabstrip::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.35);
     background-clip: padding-box;
 }
 
-#civitai-ext .civitai-tab {
+#civlens-ext .civlens-tab {
     display: inline-flex;
     align-items: center;
     height: 34px;
@@ -77,13 +77,13 @@
     z-index: 1;
 }
 
-#civitai-ext .civitai-tab:hover {
+#civlens-ext .civlens-tab:hover {
     background: #111d33;
     border-color: #334155;
     color: #e2e8f0;
 }
 
-#civitai-ext .civitai-tab.active {
+#civlens-ext .civlens-tab.active {
     background: #111827;
     border-color: #334155;
     color: #f1f5f9;
@@ -91,18 +91,18 @@
     z-index: 2;
 }
 
-#civitai-ext .civitai-tab-icon {
+#civlens-ext .civlens-tab-icon {
     display: none;
 }
 
-#civitai-ext .civitai-tab-title {
+#civlens-ext .civlens-tab-title {
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     letter-spacing: 0.2px;
 }
 
-#civitai-ext .civitai-tab-close {
+#civlens-ext .civlens-tab-close {
     margin-left: 8px;
     width: 24px;
     height: 24px;
@@ -117,23 +117,23 @@
     opacity: 0;
 }
 
-#civitai-ext .civitai-tab:hover .civitai-tab-close,
-#civitai-ext .civitai-tab.active .civitai-tab-close {
+#civlens-ext .civlens-tab:hover .civlens-tab-close,
+#civlens-ext .civlens-tab.active .civlens-tab-close {
     opacity: 1;
 }
 
-#civitai-ext .civitai-tab-close:hover {
+#civlens-ext .civlens-tab-close:hover {
     background: rgba(239, 68, 68, 0.14);
     border-color: rgba(248, 113, 113, 0.45);
     color: rgba(248, 113, 113, 0.98);
 }
 
-#civitai-ext .civitai-tab-close-icon {
+#civlens-ext .civlens-tab-close-icon {
     font-size: 16px;
     line-height: 1;
 }
 
-#civitai-ext .civitai-tab-add {
+#civlens-ext .civlens-tab-add {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -149,31 +149,31 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-#civitai-ext .civitai-tab-add:hover {
+#civlens-ext .civlens-tab-add:hover {
     background: rgba(59, 130, 246, 0.14);
     border-color: rgba(96, 165, 250, 0.55);
     color: rgba(96, 165, 250, 0.98);
 }
 
-#civitai-ext .civitai-tab-add-icon {
+#civlens-ext .civlens-tab-add-icon {
     font-size: 20px;
     line-height: 1;
 }
 
 /* Reduce vertical spacing */
-#civitai-ext .gr-group + .gr-row,
-#civitai-ext .gr-group ~ .gr-row {
+#civlens-ext .gr-group + .gr-row,
+#civlens-ext .gr-group ~ .gr-row {
     margin-top: 2px !important;
     padding-top: 0 !important;
 }
 
-#civitai-ext hr {
+#civlens-ext hr {
     margin: 2px 0 !important;
 }
 
 /* Buttons */
-#civitai-ext .btn-load .gr-button,
-#civitai-ext .btn-load button {
+#civlens-ext .btn-load .gr-button,
+#civlens-ext .btn-load button {
     background: linear-gradient(180deg, rgba(96,165,250,0.35), rgba(29,78,216,0.35));
     border: 1px solid rgba(96,165,250,0.55);
     color: #e2e8f0;
@@ -186,26 +186,26 @@
     margin-left: 8px;
 }
 
-#civitai-ext .btn-load .gr-button:hover,
-#civitai-ext .btn-load button:hover {
+#civlens-ext .btn-load .gr-button:hover,
+#civlens-ext .btn-load button:hover {
     background: rgba(30,58,138,0.55);
     border-color: rgba(29,78,216,0.75);
     color: #fff;
 }
 
-#civitai-ext .btn-load {
+#civlens-ext .btn-load {
     flex: 1 1 auto;
 }
 
-#civitai-ext .btn-load .gr-button,
-#civitai-ext .btn-load button {
+#civlens-ext .btn-load .gr-button,
+#civlens-ext .btn-load button {
     width: 100%;
     justify-content: center;
     font-weight: 600;
 }
 
-#civitai-ext .btn-refine-orange .gr-button,
-#civitai-ext .btn-refine-orange button {
+#civlens-ext .btn-refine-orange .gr-button,
+#civlens-ext .btn-refine-orange button {
     background: #f97316;
     border: 1px solid #fb923c;
     color: #0b0f19;
@@ -217,14 +217,14 @@
     gap: 6px;
 }
 
-#civitai-ext .btn-refine-orange .gr-button:hover,
-#civitai-ext .btn-refine-orange button:hover {
+#civlens-ext .btn-refine-orange .gr-button:hover,
+#civlens-ext .btn-refine-orange button:hover {
     background: #fb923c;
     border-color: #fdba74;
 }
 
-#civitai-ext .btn-download .gr-button,
-#civitai-ext .btn-download button {
+#civlens-ext .btn-download .gr-button,
+#civlens-ext .btn-download button {
     width: 100%;
     justify-content: center;
     font-weight: 600;
@@ -232,7 +232,7 @@
     border-radius: 12px;
 }
 
-#civitai-ext .download-progress .progress-bar {
+#civlens-ext .download-progress .progress-bar {
     height: 16px;
     background: #0f172a;
     border: 1px solid #1f2937;
@@ -240,13 +240,13 @@
     overflow: hidden;
 }
 
-#civitai-ext .download-progress .progress-fill {
+#civlens-ext .download-progress .progress-fill {
     height: 100%;
     background: #3b82f6;
     transition: width 0.2s ease;
 }
 
-#civitai-ext .content-center {
+#civlens-ext .content-center {
     margin-left: auto !important;
     margin-right: auto !important;
     display: flex;
