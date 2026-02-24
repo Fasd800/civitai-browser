@@ -513,9 +513,9 @@ def get_model_header_html(model, version=None):
         "<div style='margin-bottom:10px'>"
         "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{model.get('name','NA')}</h3>"
-        f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
         "</div>"
         "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap'>"
+        f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
         f"<span style='background:#1e2d3d;border:1px solid #1d4ed8;color:#60a5fa;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{creator}</span>"
         f"<span style='background:#1a2e1a;border:1px solid #166534;color:#34d399;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{downloads:,} downloads</span>"
         f"{stars}"
@@ -1124,18 +1124,17 @@ def make_panel_components(i, api_key_state):
                     scale=3,
                     elem_classes=["content-center"],
                 )
-                search_btn = gr.Button("🔍 Load models", variant="primary", scale=4, min_width=220, elem_classes=["btn-load"])
 
             with gr.Row():
                 base_model = gr.Dropdown(
                     label="Base model",
-                    choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Other"],
+                    choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z image Base", "Z Image turbo"],
                     value="Any",
                     scale=2,
                 )
                 tag_categories = gr.CheckboxGroup(
                     label="Tag categories",
-                    choices=["character", "background", "clothing", "style", "concept", "artist"],
+                    choices=["Background", "Base model", "Buildings", "Character", "Clothing", "Concept", "Poses", "Style"],
                     value=[],
                     scale=3,
                 )
@@ -1145,6 +1144,9 @@ def make_panel_components(i, api_key_state):
                     lines=1,
                     scale=5,
                 )
+
+            with gr.Row():
+                search_btn = gr.Button("🔍 Load models", variant="primary", scale=4, min_width=220, elem_classes=["btn-load"])
 
         with gr.Group():
             gr.Markdown("Load Models and Keyword Filter")
