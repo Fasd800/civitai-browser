@@ -1255,7 +1255,6 @@ def make_panel_components(i, api_key_state):
                             scale=5,
                         )
                         search_btn = gr.Button("🔍 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
-                        refine_btn = gr.Button("✨ Refine", variant="secondary", scale=1, min_width=80, elem_classes=["btn-refine-orange"])
 
                     with gr.Accordion("Advanced Filters", open=False):
                         with gr.Row():
@@ -1391,6 +1390,8 @@ def make_panel_components(i, api_key_state):
                 "items": [],
                 "metadata": {},
                 "all_items": [],
+                "raw_items": [],
+                "last_api_params": {},
                 "next_page": "",
                 "first_page": "",
                 "query": "",
@@ -1584,75 +1585,130 @@ def make_panel_components(i, api_key_state):
             outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
-        def do_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
-            items, meta, next_page, first_page = search_first_page(q, mt, srt, levels, api_key, creator, per)
-            items = [m for m in items if _model_matches_content_levels(m, levels)]
-            visible_items = [m for m in items if _has_thumbnail(m, levels)]
-            creator_active = creator and creator != "— All —"
-            all_loaded = list(visible_items)
-            if creator_active and next_page:
-                headers = _get_headers(api_key)
-                seen = {m.get("id") for m in all_loaded if m.get("id") is not None}
-                pages = 1
-                while next_page:
-                    pages += 1
-                    items2, meta2, next2 = _fetch_url(next_page, headers)
-                    items2 = [m for m in items2 if _model_matches_content_levels(m, levels)]
-                    visible2 = [m for m in items2 if _has_thumbnail(m, levels)]
-                    for m in visible2:
-                        mid = m.get("id")
-                        if mid is None or mid in seen:
-                            continue
-                        seen.add(mid)
-                        all_loaded.append(m)
-                    meta = meta2 or meta
-                    next_page = next2
-                    if pages >= 50 or len(all_loaded) >= 5000:
-                        break
+        def do_smart_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
+            last_params = sd.get("last_api_params", {})
+            
+            def is_nsfw(lvl_list):
+                return any((l or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for l in lvl_list)
 
-            filtered_visible = _apply_extra_filters(visible_items, cats, tag_text, bm)
-            filtered_all = _apply_extra_filters(all_loaded, cats, tag_text, bm)
+            current_nsfw = is_nsfw(levels)
+            last_nsfw = last_params.get("nsfw") if last_params else None
 
-            if creator_active:
-                total = meta.get("totalItems", len(filtered_all))
-                page_lbl = f"Loaded {len(filtered_all)} of {total} results" if filtered_all else "No results found."
+            need_api = False
+            if not last_params:
+                need_api = True
             else:
-                total = meta.get("totalItems", len(filtered_visible))
-                page_lbl = f"Page 1: {len(filtered_visible)} of {total} results" if filtered_visible else "No results found."
+                if (q != last_params.get("q") or
+                    mt != last_params.get("mt") or
+                    srt != last_params.get("srt") or
+                    per != last_params.get("per") or
+                    creator != last_params.get("creator") or
+                    current_nsfw != last_nsfw):
+                    need_api = True
+            
+            if not sd.get("all_items"):
+                need_api = True
 
-            new_sd = {
-                "items": (filtered_all if creator_active else filtered_visible),
-                "metadata": meta,
-                "all_items": (filtered_all if creator_active else filtered_visible),
-                "next_page": ("" if creator_active else next_page),
-                "first_page": first_page,
-                "query": q,
-                "tag_categories": (cats or []),
-                "tag_filter": (tag_text or ""),
-                "base_model": (bm or "Any"),
-                "content_levels": (levels or ["PG", "PG-13", "R", "X", "XXX"]),
-                "selected_index": 0,
-            }
+            if need_api:
+                items, meta, next_page, first_page = search_first_page(q, mt, srt, levels, api_key, creator, per)
+                items = [m for m in items if _model_matches_content_levels(m, levels)]
+                visible_items = [m for m in items if _has_thumbnail(m, levels)]
+                
+                creator_active = creator and creator != "— All —"
+                all_loaded = list(visible_items)
+                if creator_active and next_page:
+                    headers = _get_headers(api_key)
+                    seen = {m.get("id") for m in all_loaded if m.get("id") is not None}
+                    pages = 1
+                    while next_page:
+                        pages += 1
+                        items2, meta2, next2 = _fetch_url(next_page, headers)
+                        items2 = [m for m in items2 if _model_matches_content_levels(m, levels)]
+                        visible2 = [m for m in items2 if _has_thumbnail(m, levels)]
+                        for m in visible2:
+                            mid = m.get("id")
+                            if mid is None or mid in seen:
+                                continue
+                            seen.add(mid)
+                            all_loaded.append(m)
+                        meta = meta2 or meta
+                        next_page = next2
+                        if pages >= 50 or len(all_loaded) >= 5000:
+                            break
 
-            return (
-                build_gallery_data(filtered_all if creator_active else filtered_visible, levels),
-                gr.update(value=page_lbl, visible=True),
-                gr.update(value="", visible=False),
-                "",
-                gr.update(visible=False, interactive=False, choices=[], value=None),
-                build_trigger_words_html([]),
-                EMPTY_DETAIL,
-                "",
-                new_sd,
-            )
+                raw_items_list = all_loaded if creator_active else visible_items
+                filtered_visible = _apply_extra_filters(raw_items_list, cats, tag_text, bm)
+
+                if creator_active:
+                    total = meta.get("totalItems", len(raw_items_list))
+                    page_lbl = f"Loaded {len(filtered_visible)} of {total} results" if filtered_visible else "No results found."
+                else:
+                    total = meta.get("totalItems", len(raw_items_list))
+                    page_lbl = f"Page 1: {len(filtered_visible)} of {total} results" if filtered_visible else "No results found."
+
+                new_sd = {
+                    "items": filtered_visible,
+                    "metadata": meta,
+                    "all_items": raw_items_list,
+                    "raw_items": raw_items_list,
+                    "last_api_params": {
+                        "q": q, "mt": mt, "srt": srt, "per": per, "creator": creator, "nsfw": current_nsfw
+                    },
+                    "next_page": ("" if creator_active else next_page),
+                    "first_page": first_page,
+                    "query": q,
+                    "tag_categories": (cats or []),
+                    "tag_filter": (tag_text or ""),
+                    "base_model": (bm or "Any"),
+                    "content_levels": (levels or ["PG", "PG-13", "R", "X", "XXX"]),
+                    "selected_index": 0,
+                }
+
+                return (
+                    build_gallery_data(filtered_visible, levels),
+                    gr.update(value=page_lbl, visible=True),
+                    gr.update(value="", visible=False),
+                    "",
+                    gr.update(visible=False, interactive=False, choices=[], value=None),
+                    build_trigger_words_html([]),
+                    EMPTY_DETAIL,
+                    "",
+                    new_sd,
+                )
+            else:
+                raw_items = sd.get("raw_items", [])
+                if not raw_items:
+                    raw_items = sd.get("all_items", []) or []
+                
+                filtered = _apply_extra_filters(raw_items, cats, tag_text, bm)
+                page_lbl = f"{len(filtered)} matches from {len(raw_items)} cached"
+                
+                new_sd = dict(sd)
+                new_sd["items"] = filtered
+                new_sd["tag_categories"] = cats or []
+                new_sd["tag_filter"] = tag_text or ""
+                new_sd["base_model"] = bm or "Any"
+                new_sd["selected_index"] = 0
+                
+                return (
+                    build_gallery_data(filtered, levels),
+                    gr.update(value=page_lbl, visible=True),
+                    gr.update(value="", visible=False),
+                    "",
+                    gr.update(visible=False, interactive=False, choices=[], value=None),
+                    build_trigger_words_html([]),
+                    EMPTY_DETAIL,
+                    "",
+                    new_sd,
+                )
 
         search_btn.click(
-            fn=do_search,
+            fn=do_smart_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
             outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
         query.submit(
-            fn=do_search,
+            fn=do_smart_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
             outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
@@ -1708,47 +1764,6 @@ def make_panel_components(i, api_key_state):
             outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
-        def do_refine(q, sd, api_key):
-            all_items = sd.get("all_items", []) or []
-            levels = sd.get("content_levels", [])
-            if not all_items:
-                items, meta, next_page, first_page = search_first_page(q, "All", "Most Downloaded", levels or ["PG", "PG-13", "R", "X", "XXX"], api_key, "— All —", "AllTime")
-                items = [m for m in items if _model_matches_content_levels(m, levels)]
-                visible_items = [m for m in items if _has_thumbnail(m, levels)]
-                all_items = visible_items
-                sd = dict(sd)
-                sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next_page, "first_page": first_page, "selected_index": 0})
-
-            if not q.strip():
-                matched = [m for m in all_items if _model_matches_content_levels(m, levels)]
-            else:
-                qq = q.strip().lower()
-                matched = [m for m in all_items if _matches_query(m, qq) and _model_matches_content_levels(m, levels)]
-            matched = _apply_extra_filters(matched, sd.get("tag_categories"), sd.get("tag_filter"), sd.get("base_model"))
-
-            sd2 = dict(sd)
-            sd2["items"] = matched
-            sd2["selected_index"] = 0
-
-            page_lbl = f"{len(matched)} matches from {len(all_items)} cached"
-
-            return (
-                build_gallery_data(matched, levels),
-                gr.update(value=page_lbl, visible=True),
-                gr.update(value="", visible=False),
-                "",
-                gr.update(visible=False, interactive=False, choices=[], value=None),
-                build_trigger_words_html([]),
-                EMPTY_DETAIL,
-                "",
-                sd2,
-            )
-
-        refine_btn.click(
-            fn=do_refine,
-            inputs=[query, search_data, api_key_state],
-            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
-        )
 
         clear_targets = [
             url_input,
