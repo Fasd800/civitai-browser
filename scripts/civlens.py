@@ -297,7 +297,7 @@ def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_valu
 
 
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
-    include_nsfw = any(lvl in content_levels for lvl in ["PG-13", "R", "X", "XXX"])
+    include_nsfw = any((lvl or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for lvl in content_levels)
     params = {
         "limit": 20,
         "sort": sort,
@@ -396,36 +396,34 @@ def get_trigger_words_for_version(version):
     return version.get("trainedWords", []) if version else []
 
 
+def _pick_model_preview_image_url(model: dict):
+    versions = model.get("modelVersions", []) or []
+    sel_id = model.get("_civitai_selected_version_id", None)
+    ordered = []
+    if sel_id is not None:
+        for v in versions:
+            if str(v.get("id")) == str(sel_id):
+                ordered.append(v)
+                break
+    if ordered:
+        ordered += [v for v in versions if str(v.get("id")) != str(sel_id)]
+    else:
+        ordered = list(versions)
+    for v in ordered:
+        thumb = _pick_version_preview_image_url(v or {})
+        if thumb:
+            return thumb
+    return ""
+
+
 def _has_thumbnail(model):
-    skip_types = {"video"}
-    skip_ext = {".mp4", ".webm", ".gif", ".mov", ".avi"}
-    for ver in model.get("modelVersions", [])[:1]:
-        for img in ver.get("images", []):
-            if img.get("type", "image").lower() in skip_types:
-                continue
-            url = img.get("url", "")
-            ext = os.path.splitext(url.split("?")[0])[1].lower()
-            if ext in skip_ext:
-                continue
-            return True
-    return False
+    return bool(_pick_model_preview_image_url(model))
 
 
 def build_gallery_data(items):
     gallery = []
     for m in items:
-        versions = m.get("modelVersions", []) or []
-        sel_id = m.get("_civitai_selected_version_id", None)
-        chosen = None
-        if sel_id is not None:
-            for v in versions:
-                if str(v.get("id")) == str(sel_id):
-                    chosen = v
-                    break
-        if chosen is None and versions:
-            chosen = versions[0]
-
-        thumb = _pick_version_preview_image_url(chosen or {})
+        thumb = _pick_model_preview_image_url(m or {})
         if thumb:
             gallery.append((thumb, m.get("name", "?")))
     return gallery
@@ -1202,8 +1200,8 @@ def make_panel_components(i, api_key_state):
                 )
                 content_levels = gr.CheckboxGroup(
                     label="Content rating",
-                    choices=["PG", "PG-13", "R", "X", "XXX"],
-                    value=["PG", "PG-13", "R", "X", "XXX"],
+                    choices=["Safe", "NSFW"],
+                    value=["Safe", "NSFW"],
                     scale=3,
                 )
 
@@ -1395,11 +1393,31 @@ def make_panel_components(i, api_key_state):
 
             model_id, version_id = parse_civitai_url(url)
             if not model_id:
-                return [], gr.update(value="URL not recognized.", visible=True), gr.update(visible=False, interactive=False), "", build_trigger_words_html([]), EMPTY_DETAIL, "", empty_sd
+                return (
+                    [],
+                    gr.update(value="URL not recognized.", visible=True),
+                    gr.update(value="", visible=False),
+                    gr.update(visible=False, interactive=False),
+                    "",
+                    build_trigger_words_html([]),
+                    EMPTY_DETAIL,
+                    "",
+                    empty_sd,
+                )
 
             model, err = fetch_model_by_id(model_id, api_key)
             if err or not model:
-                return [], gr.update(value=(err or "Not found."), visible=True), gr.update(visible=False, interactive=False), "", build_trigger_words_html([]), EMPTY_DETAIL, "", empty_sd
+                return (
+                    [],
+                    gr.update(value=(err or "Not found."), visible=True),
+                    gr.update(value="", visible=False),
+                    gr.update(visible=False, interactive=False),
+                    "",
+                    build_trigger_words_html([]),
+                    EMPTY_DETAIL,
+                    "",
+                    empty_sd,
+                )
 
             versions = model.get("modelVersions", []) or []
             ver_choices = [_version_label(v) for v in versions]
@@ -1433,6 +1451,7 @@ def make_panel_components(i, api_key_state):
             return (
                 build_gallery_data([m2]),
                 gr.update(value=f"Loaded: {model.get('name','?')}", visible=True),
+                gr.update(value="", visible=False),
                 gr.update(choices=ver_choices, value=ver_val, visible=True, interactive=len(ver_choices) > 1),
                 get_model_header_html(m2, selected_ver),
                 build_trigger_words_html(get_trigger_words_for_version(selected_ver)),
@@ -1444,12 +1463,12 @@ def make_panel_components(i, api_key_state):
         url_btn.click(
             fn=load_from_url,
             inputs=[url_input, api_key_state],
-            outputs=[gallery, url_status, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
+            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
         url_input.submit(
             fn=load_from_url,
             inputs=[url_input, api_key_state],
-            outputs=[gallery, url_status, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
+            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
@@ -1502,6 +1521,7 @@ def make_panel_components(i, api_key_state):
             return (
                 build_gallery_data(filtered_all if creator_active else filtered_visible),
                 gr.update(value=page_lbl, visible=True),
+                gr.update(value="", visible=False),
                 "",
                 gr.update(visible=False, interactive=False, choices=[], value=None),
                 build_trigger_words_html([]),
@@ -1513,12 +1533,12 @@ def make_panel_components(i, api_key_state):
         search_btn.click(
             fn=do_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
-            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
         query.submit(
             fn=do_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
-            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_next(sd, api_key):
@@ -1588,13 +1608,37 @@ def make_panel_components(i, api_key_state):
 
             page_lbl = f"{len(matched)} matches from {len(all_items)} cached"
 
-            return build_gallery_data(matched), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd2
+            return (
+                build_gallery_data(matched),
+                gr.update(value=page_lbl, visible=True),
+                gr.update(value="", visible=False),
+                "",
+                gr.update(visible=False, interactive=False, choices=[], value=None),
+                build_trigger_words_html([]),
+                EMPTY_DETAIL,
+                "",
+                sd2,
+            )
 
         refine_btn.click(
             fn=do_refine,
             inputs=[query, search_data, api_key_state],
-            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
+
+        clear_targets = [
+            url_input,
+            url_status,
+            query,
+            gallery,
+            page_info,
+            model_header_html,
+            version_selector,
+            trigger_html,
+            model_body_html,
+            selected_url,
+            search_data,
+        ]
 
         def clear_tab():
             empty_sd = {
@@ -1608,11 +1652,14 @@ def make_panel_components(i, api_key_state):
             }
             return (
                 "",
-                "",
                 gr.update(value="", visible=False),
-                gr.update(choices=[], value=None, visible=False),
-                EMPTY_DETAIL,
+                "",
+                [],
+                gr.update(value="", visible=False),
+                "",
+                gr.update(choices=[], value=None, visible=False, interactive=False),
                 build_trigger_words_html([]),
+                EMPTY_DETAIL,
                 "",
                 empty_sd,
             )
@@ -1633,7 +1680,7 @@ def make_panel_components(i, api_key_state):
             outputs=[dl_progress_html, dl_status, dl_poll_timer],
         )
 
-    return col
+    return col, creator_filter, clear_tab, clear_targets
 
 
 # =============================================================================
@@ -1676,35 +1723,51 @@ def on_ui_tabs():
                     ]
 
                 panels = [make_panel_components(i, api_key_state) for i in range(MAX_TABS)]
-                panel_cols = list(panels)
+                panel_cols = [p[0] for p in panels]
+                creator_filters = [p[1] for p in panels]
+                panel_clear_fns = [p[2] for p in panels]
+                panel_clear_targets = [p[3] for p in panels]
+                clear_outputs = [c for targets in panel_clear_targets for c in targets]
 
                 def _vis_updates(count, active):
                     return [gr.update(visible=(j < count and j == active)) for j in range(MAX_TABS)]
 
+                def _noop_clear_updates():
+                    return [gr.update() for _ in range(len(clear_outputs))]
+
+                def _clear_updates_for(idx):
+                    updates = []
+                    for j in range(MAX_TABS):
+                        if j == idx:
+                            updates += list(panel_clear_fns[j]())
+                        else:
+                            updates += [gr.update() for _ in range(len(panel_clear_targets[j]))]
+                    return updates
+
                 def do_add(count, active):
                     if count >= MAX_TABS:
-                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active)
+                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active) + _noop_clear_updates()
                     new_count = count + 1
                     new_active = count
-                    return [new_count, new_active, render_tab_bar(new_count, new_active)] + _vis_updates(new_count, new_active)
+                    return [new_count, new_active, render_tab_bar(new_count, new_active)] + _vis_updates(new_count, new_active) + _noop_clear_updates()
 
                 def do_close(idx, count, active):
                     if count <= 1:
-                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active)
+                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active) + _noop_clear_updates()
                     new_count = count - 1
                     new_active = active
                     if active == idx:
                         new_active = min(idx, new_count - 1)
                     elif active > idx:
                         new_active = active - 1
-                    return [new_count, new_active, render_tab_bar(new_count, new_active)] + _vis_updates(new_count, new_active)
+                    return [new_count, new_active, render_tab_bar(new_count, new_active)] + _vis_updates(new_count, new_active) + _clear_updates_for(idx)
 
                 def do_switch(idx, count, active):
                     if idx >= count:
-                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active)
-                    return [count, idx, render_tab_bar(count, idx)] + _vis_updates(count, idx)
+                        return [count, active, render_tab_bar(count, active)] + _vis_updates(count, active) + _noop_clear_updates()
+                    return [count, idx, render_tab_bar(count, idx)] + _vis_updates(count, idx) + _noop_clear_updates()
 
-                shared_outputs = [tab_count, active_tab, tab_bar] + panel_cols
+                shared_outputs = [tab_count, active_tab, tab_bar] + panel_cols + clear_outputs
 
                 add_btn.click(
                     fn=do_add,
@@ -1753,34 +1816,38 @@ def on_ui_tabs():
 
                 def add_creator(username):
                     if not username:
-                        return gr.update(), "No creator entered."
+                        return [gr.update(), "No creator entered."] + [gr.update() for _ in creator_filters]
                     s = load_settings()
                     favs = s.get("favorite_creators", [])
                     if username not in favs:
                         favs.append(username)
                     s["favorite_creators"] = favs
                     save_settings(s)
-                    return gr.update(choices=favs, value=None), f"Added: {username}"
+                    creator_choices = ["— All —"] + favs
+                    creator_updates = [gr.update(choices=creator_choices, value="— All —") for _ in creator_filters]
+                    return [gr.update(choices=favs, value=None), f"Added: {username}"] + creator_updates
 
                 add_creator_btn.click(
                     fn=add_creator,
                     inputs=[new_favorite_input],
-                    outputs=[favorites_list, creator_status],
+                    outputs=[favorites_list, creator_status] + creator_filters,
                 )
 
                 def remove_creator(username):
                     if not username:
-                        return gr.update(), "No creator selected."
+                        return [gr.update(), "No creator selected."] + [gr.update() for _ in creator_filters]
                     s = load_settings()
                     favs = [f for f in s.get("favorite_creators", []) if f != username]
                     s["favorite_creators"] = favs
                     save_settings(s)
-                    return gr.update(choices=favs, value=None), f"Removed: {username}"
+                    creator_choices = ["— All —"] + favs
+                    creator_updates = [gr.update(choices=creator_choices, value="— All —") for _ in creator_filters]
+                    return [gr.update(choices=favs, value=None), f"Removed: {username}"] + creator_updates
 
                 remove_creator_btn.click(
                     fn=remove_creator,
                     inputs=[favorites_list],
-                    outputs=[favorites_list, creator_status],
+                    outputs=[favorites_list, creator_status] + creator_filters,
                 )
 
     return [(civitai_tab, "CivLens", "civlens")]
