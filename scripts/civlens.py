@@ -1243,127 +1243,117 @@ def stop_download(panel_id):
 # =============================================================================
 def make_panel_components(i, api_key_state):
     with gr.Column(visible=i == 0, elem_id=f"civlens-panel-{i}") as col:
-        # 1. Search Bar & Primary Actions
-        with gr.Group():
-            with gr.Row():
-                query = gr.Textbox(
-                    label="Search CivitAI",
-                    show_label=False,
-                    placeholder="Search models by keyword (e.g. character, style, concept)...",
-                    elem_id=f"civlens-query-{i}",
-                    scale=5,
-                )
-                search_btn = gr.Button("🔍 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
+        with gr.Tabs():
+            with gr.Tab("Search Models"):
+                with gr.Group():
+                    with gr.Row():
+                        query = gr.Textbox(
+                            label="Search Query",
+                            show_label=False,
+                            placeholder="Search by keyword...",
+                            elem_id=f"civlens-query-{i}",
+                            scale=5,
+                        )
+                        search_btn = gr.Button("🔍 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
+                        refine_btn = gr.Button("✨ Refine", variant="secondary", scale=1, min_width=80, elem_classes=["btn-refine-orange"])
 
-        # 2. Filters & Options
-        with gr.Accordion("Filters & Sorting", open=True):
-            with gr.Row():
-                model_type = gr.Dropdown(
-                    label="Type",
-                    choices=["All", "Checkpoint", "LORA", "TextualInversion", "Controlnet", "Hypernetwork", "VAE", "Poses", "Wildcards", "Other"],
-                    value="All",
-                    scale=2,
-                    info="Filter by model type"
-                )
-                base_model = gr.Dropdown(
-                    label="Base model",
-                    choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z image Base", "Z Image turbo"],
-                    value="Any",
-                    scale=2,
-                    info="Filter by SD version"
-                )
-                sort = gr.Dropdown(
-                    label="Sort by",
-                    choices=["Most Downloaded", "Highest Rated", "Newest", "Most Liked", "Most Discussed"],
-                    value="Newest",
-                    scale=2,
-                    info="Sort order"
-                )
-                period = gr.Dropdown(
-                    label="Period",
-                    choices=["AllTime", "Year", "Month", "Week", "Day"],
-                    value="AllTime",
-                    scale=2,
-                    info="Time range"
-                )
+                    with gr.Accordion("Advanced Filters", open=False):
+                        with gr.Row():
+                            model_type = gr.Dropdown(
+                                label="Type",
+                                choices=["All", "Checkpoint", "LORA", "TextualInversion", "Controlnet", "Hypernetwork", "VAE", "Poses", "Wildcards", "Other"],
+                                value="All",
+                                scale=2,
+                            )
+                            sort = gr.Dropdown(
+                                label="Sort by",
+                                choices=["Most Downloaded", "Highest Rated", "Newest", "Most Liked", "Most Discussed"],
+                                value="Newest",
+                                scale=2,
+                            )
+                            period = gr.Dropdown(
+                                label="Period",
+                                choices=["AllTime", "Year", "Month", "Week", "Day"],
+                                value="AllTime",
+                                scale=2,
+                            )
+                            base_model = gr.Dropdown(
+                                label="Base model",
+                                choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z image Base", "Z Image turbo"],
+                                value="Any",
+                                scale=2,
+                            )
+                            creator_filter = gr.Dropdown(
+                                label="Creator",
+                                choices=creator_dropdown_choices(),
+                                value="— All —",
+                                scale=2,
+                            )
 
-            with gr.Row():
-                creator_filter = gr.Dropdown(
-                    label="Creator",
-                    choices=creator_dropdown_choices(),
-                    value="— All —",
-                    scale=2,
-                    info="Filter by favorite creator"
-                )
-                tag_filter = gr.Textbox(
-                    label="Tags",
-                    placeholder="Comma separated tags...",
-                    lines=1,
-                    scale=3,
-                    info="Filter by specific tags"
-                )
-                refine_btn = gr.Button("✨ Filter Loaded Results", variant="secondary", scale=1, min_width=150, elem_classes=["btn-refine-orange"])
+                        with gr.Row():
+                            tag_filter = gr.Textbox(
+                                label="Tags",
+                                placeholder="Comma separated tags",
+                                lines=1,
+                                scale=5,
+                            )
+                            tag_categories = gr.CheckboxGroup(
+                                label="Tag categories",
+                                choices=["Background", "Base model", "Buildings", "Character", "Clothing", "Concept", "Poses", "Style"],
+                                value=[],
+                                scale=3,
+                            )
+                            content_levels = gr.CheckboxGroup(
+                                label="Content rating",
+                                choices=["PG", "PG-13", "R", "X", "XXX"],
+                                value=["PG", "PG-13", "R", "X", "XXX"],
+                                scale=3,
+                            )
 
-            with gr.Row():
-                content_levels = gr.CheckboxGroup(
-                    label="Content rating",
-                    choices=["PG", "PG-13", "R", "X", "XXX"],
-                    value=["PG", "PG-13", "R", "X", "XXX"],
-                    scale=3,
-                    info="Select allowed content ratings"
-                )
-                tag_categories = gr.CheckboxGroup(
-                    label="Tag categories",
-                    choices=["Background", "Base model", "Buildings", "Character", "Clothing", "Concept", "Poses", "Style"],
-                    value=[],
-                    scale=4,
-                    info="Filter by tag category"
-                )
+            with gr.Tab("Load by URL"):
+                with gr.Group():
+                    with gr.Row():
+                        url_input = gr.Textbox(
+                            label="Model URL",
+                            show_label=False,
+                            placeholder="Paste a CivitAI model or version URL",
+                            elem_id=f"civlens-url-input-{i}",
+                            scale=5,
+                        )
+                        url_btn = gr.Button("⬇️ Load", variant="primary", scale=1, min_width=120, elem_id=f"civlens-url-btn-{i}")
 
-        # 3. Direct URL Load (Advanced/Specific)
-        with gr.Accordion("Load Specific Model (URL)", open=False):
-            with gr.Row():
-                url_input = gr.Textbox(
-                    label="Model URL",
-                    show_label=False,
-                    placeholder="Paste a CivitAI model or version URL (e.g. https://civitai.com/models/12345)",
-                    elem_id=f"civlens-url-input-{i}",
-                    scale=5,
-                )
-                url_btn = gr.Button("⬇ Load URL", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-url-btn-{i}")
-
-            url_status = gr.Textbox(
-                label="",
-                show_label=False,
-                interactive=False,
-                lines=1,
-                visible=False,
-                placeholder="URL status",
-            )
+                    url_status = gr.Textbox(
+                        label="",
+                        show_label=False,
+                        interactive=False,
+                        lines=1,
+                        visible=False,
+                        placeholder="URL status",
+                    )
 
         with gr.Row(equal_height=False):
-            with gr.Column(scale=1, min_width=260):
+            with gr.Column(scale=2, min_width=300):
                 gr.Markdown("Results")
                 gallery = gr.Gallery(
                     label="",
                     show_label=False,
                     columns=2,
-                    rows=4,
-                    height=480,
+                    rows=3,
+                    height=600,
                     elem_id=f"civlens-gallery-{i}",
-                    object_fit="cover",
+                    object_fit="contain",
                     interactive=False,
                     allow_preview=True,
                 )
 
                 with gr.Row():
-                    prev_btn = gr.Button("⬅️ Previous", variant="secondary", scale=1, min_width=90)
-                    page_info = gr.Textbox(label="", show_label=False, interactive=False, lines=1, value="", scale=3, placeholder="Page info")
-                    next_btn = gr.Button("➡️ Next", variant="secondary", scale=1, min_width=90)
+                    prev_btn = gr.Button("⬅️ Prev", variant="secondary", scale=1, min_width=80)
+                    page_info = gr.Textbox(label="", show_label=False, interactive=False, lines=1, value="", scale=2, placeholder="Page info")
+                    next_btn = gr.Button("Next ➡️", variant="secondary", scale=1, min_width=80)
 
                 gr.HTML(discord_banner_html())
 
-            with gr.Column(scale=3):
+            with gr.Column(scale=2, min_width=300):
                 gr.Markdown("Model details")
                 model_header_html = gr.HTML("")
                 version_selector = gr.Dropdown(
@@ -1380,9 +1370,9 @@ def make_panel_components(i, api_key_state):
                 gr.HTML('<hr style="border-color:#1f2937;margin:0">')
 
                 with gr.Row():
-                    download_btn = gr.Button("⬇️ Download model", variant="primary", scale=3, min_width=220, elem_classes=["btn-download"])
-                    stop_btn = gr.Button("⏹️ Stop download", variant="secondary", scale=1, min_width=140)
-                    send_tab_btn = gr.Button("📤 Send to new tab", variant="secondary", scale=1, min_width=170, elem_id=f"civlens-send-tab-{i}")
+                    download_btn = gr.Button("⬇️ Download", variant="primary", scale=2, min_width=150, elem_classes=["btn-download"])
+                    stop_btn = gr.Button("⏹️ Stop", variant="secondary", scale=1, min_width=80)
+                    send_tab_btn = gr.Button("📤 Send to Tab", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-send-tab-{i}")
                 dl_progress_html = gr.HTML("")
 
                 dl_status = gr.Textbox(
