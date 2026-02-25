@@ -1878,6 +1878,9 @@ def on_ui_tabs():
                     
                     panel_tabs = []
                     panel_close_btns = []
+                    panel_clear_fns = []
+                    panel_clear_targets = []
+                    creator_filters = []
                     
                     for i in range(MAX_TABS):
                         # Pass a dummy function initially, we will bind the real logic later
