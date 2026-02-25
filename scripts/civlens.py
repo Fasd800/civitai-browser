@@ -1970,54 +1970,83 @@ def on_ui_tabs():
                     )
 
                 # JS to handle tab close clicks - checks for clicks on the pseudo-element area
+                # We need a more robust way to attach this, as Gradio might wipe event listeners on re-render.
+                # We'll use a polling approach to attach the listener to the container once it exists.
                 gr.HTML("""
                     <script>
-                        document.addEventListener('click', function(e) {
-                            var target = e.target;
-                            
-                            // Check if we clicked on a button inside our specific tab container
-                            // Selector: #civlens-search-tabs > .tab-nav > button
-                            var container = document.getElementById('civlens-search-tabs');
-                            if (!container) return;
-                            
-                            // Gradio's structure might vary slightly, usually .tab-nav or similar class
-                            var nav = container.querySelector('.tab-nav');
-                            if (!nav) return;
-                            
-                            // Traverse up to find button if clicked on span inside (though we aim for the button itself)
-                            var btn = target.closest('button');
-                            if (!btn || !nav.contains(btn)) return;
-                            
-                            // Check if it is the "+" tab (contains ➕ or is last child)
-                            if (btn.innerText.includes("➕")) return;
-                            
-                            // Check if click is in the rightmost area (where we render the X)
-                            var rect = btn.getBoundingClientRect();
-                            var x = e.clientX - rect.left;
-                            
-                            // If click is within the last 30px
-                            if (x > rect.width - 30) {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                e.stopImmediatePropagation(); // Important to stop Gradio from switching tabs
+                        (function() {
+                            function setupTabClose() {
+                                var container = document.getElementById('civlens-search-tabs');
+                                if (!container) return;
                                 
-                                // Extract the index from the text "Search N"
-                                // We use textContent to get "Search 1", "Search 2", etc.
-                                var text = btn.innerText;
-                                var match = text.match(/Search\s+(\d+)/);
-                                if (match) {
-                                    var idx = parseInt(match[1]) - 1; // 0-based index
-                                    // Click the hidden close button for this index
-                                    var closeBtnId = 'civlens-close-btn-' + idx;
-                                    var closeBtn = document.getElementById(closeBtnId);
-                                    if (closeBtn) {
-                                        closeBtn.click();
-                                    } else {
-                                        console.error("CivLens: Close button not found for id " + closeBtnId);
-                                    }
+                                // Prevent multiple attachments
+                                if (!container.dataset.closeListenerAttached) {
+                                    container.dataset.closeListenerAttached = "true";
+                                    container.addEventListener('click', function(e) {
+                                        var target = e.target;
+                                        var btn = target.closest('button');
+                                        if (!btn) return;
+                                        
+                                        var nav = container.querySelector('.tab-nav');
+                                        if (!nav || !nav.contains(btn)) return;
+                                        
+                                        if (btn.innerText.includes("➕")) return;
+                                        
+                                        var rect = btn.getBoundingClientRect();
+                                        var x = e.clientX - rect.left;
+                                        
+                                        if (x > rect.width - 30) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            e.stopImmediatePropagation();
+                                            
+                                            var text = btn.innerText;
+                                            var match = text.match(/Search\s+(\d+)/);
+                                            if (match) {
+                                                var idx = parseInt(match[1]) - 1;
+                                                var closeBtnId = 'civlens-close-btn-' + idx;
+                                                var closeBtn = document.getElementById(closeBtnId);
+                                                if (closeBtn) {
+                                                    closeBtn.click();
+                                                } else {
+                                                    console.error("CivLens: Close button not found for id " + closeBtnId);
+                                                }
+                                            }
+                                        }
+                                    }, true);
+                                }
+
+                                // Apply marker class for CSS styling
+                                var nav = container.querySelector('.tab-nav');
+                                if (nav) {
+                                    var buttons = nav.querySelectorAll('button');
+                                    buttons.forEach(function(btn) {
+                                        // If it's a search tab, add the class.
+                                        // We identify search tabs by text "Search" or by exclusion of "+"
+                                        if (btn.innerText.includes("Search")) {
+                                            btn.classList.add('civlens-has-close');
+                                        } else {
+                                            btn.classList.remove('civlens-has-close');
+                                        }
+                                    });
                                 }
                             }
-                        }, true); // Use capture to intercept before Gradio switches tabs
+                            
+                            // Try to setup immediately and then poll for a bit
+                            setupTabClose();
+                            var retries = 0;
+                            var interval = setInterval(function() {
+                                setupTabClose();
+                                retries++;
+                                if (retries > 20) clearInterval(interval);
+                            }, 500);
+                            
+                            // Also re-attach on DOM changes (e.g. when tabs change)
+                            var observer = new MutationObserver(function(mutations) {
+                                setupTabClose();
+                            });
+                            observer.observe(document.body, { childList: true, subtree: true });
+                        })();
                     </script>
                 """)
 
