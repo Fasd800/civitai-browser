@@ -41,6 +41,11 @@ An extension that lets you browse, filter, preview, and download CivitAI models 
   - If you enter a keyword with a Creator selected, the extension will fetch all models from that creator and then automatically filter them by your keyword.
   - Without a Creator selected, “Search” loads a single page; use “Next” to load more pages.
 
+## Limitations
+- **Large Creator Catalogs**: When filtering by a creator who has published a large number of models (e.g., thousands), the initial load and search may take longer. This is because the extension fetches the creator's full catalog (up to a maximum of 5,000 models for safety reasons) to perform accurate local filtering and search.
+  - **Override at your own risk**: You can increase this limit by editing `scripts/civlens.py`. Search for `if pages >= 50 or len(all_loaded) >= 5000:` and increase the values. Note that extremely high limits may cause the WebUI to freeze or crash due to memory usage.
+- **API Rate Limits**: Frequent searches or downloads may trigger CivitAI's API rate limits, causing temporary delays.
+
 ## Compatibility
 - **Tested environment**:
   - WebUI version: neo
