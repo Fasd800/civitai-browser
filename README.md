@@ -50,4 +50,4 @@ An extension that lets you browse, filter, preview, and download CivitAI models 
   - xformers: 0.0.34
   - gradio: 4.40.0
 - Other versions may work, but compatibility is not guaranteed.
-- If you notice that this extension interferes with other extensions or causes any issues, you can uninstall it by simply deleting the CivLens folder from the Extensions directory.
+- If you notice that this extension interferes with other extensions or causes any issues, you can uninstall it by simply deleting the CivLens folder from the Extensions directory and reboot.
