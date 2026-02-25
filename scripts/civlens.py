@@ -1474,21 +1474,18 @@ def make_panel_components(i, api_key_state):
                 total = meta.get("totalItems", len(filtered_visible))
                 page_lbl = f"Page 1: {len(filtered_visible)} of {total} results" if filtered_visible else "No results found."
 
-            new_sd = dict(sd)
-            new_sd.update(
-                {
-                    "items": (filtered_all if creator_active else filtered_visible),
-                    "metadata": meta,
-                    "all_items": (filtered_all if creator_active else filtered_visible),
-                    "next_page": ("" if creator_active else next_page),
-                    "first_page": first_page,
-                    "query": q,
-                    "tag_categories": (cats or []),
-                    "tag_filter": (tag_text or ""),
-                    "base_model": (bm or "Any"),
-                    "selected_index": 0,
-                }
-            )
+            new_sd = {
+                "items": (filtered_all if creator_active else filtered_visible),
+                "metadata": meta,
+                "all_items": (filtered_all if creator_active else filtered_visible),
+                "next_page": ("" if creator_active else next_page),
+                "first_page": first_page,
+                "query": q,
+                "tag_categories": (cats or []),
+                "tag_filter": (tag_text or ""),
+                "base_model": (bm or "Any"),
+                "selected_index": 0,
+            }
 
             return (
                 build_gallery_data(filtered_all if creator_active else filtered_visible),
@@ -1630,7 +1627,7 @@ def make_panel_components(i, api_key_state):
 # =============================================================================
 # CSS
 # =============================================================================
-STYLE_PATH = os.path.join(EXTENSION_DIR, "style.css")
+STYLE_PATH = os.path.join(EXTENSION_DIR, "civlens.css")
 def _load_css():
     try:
         with open(STYLE_PATH, "r", encoding="utf-8") as f:
