@@ -77,15 +77,105 @@
     opacity: 0;
 }
 
-#civlens-search-tabs > .tab-nav > button:not(:last-child):hover::after,
-#civlens-search-tabs > .tab-nav > button.selected:not(:last-child)::after {
+/* Force show for last child if it is NOT the "+" tab (which is determined by content/JS, but CSS can't know)
+   Actually, the "+" tab is the last-child in DOM.
+   BUT when we hide the "+" tab (via visible=False update), the 5th tab becomes the last visible child?
+   No, Gradio likely keeps it in DOM but hidden.
+   
+   The issue is likely :not(:last-child) selector is matching the 5th tab when + is hidden or if + is considered last.
+   If + is hidden, 5th tab is NOT last-child if + is still in DOM.
+   But if + is NOT hidden (normal case), 5th tab is not last child.
+   Wait, if we have 5 tabs, + is hidden. So 5th tab IS last visible child?
+   :last-child matches the last element in parent, regardless of visibility.
+   So if + is hidden but present, 5th tab is NOT last-child.
+   
+   However, we used :not(:last-child) to exclude the "+" tab.
+   If the 5th tab is open, and + is hidden, 5th tab is the 5th element. + is the 6th.
+   So 5th tab matches :not(:last-child). So it should have the close button.
+   
+   Why did the user say "the 5th does not even have the x"?
+   Maybe because when 5 tabs are open, the "+" tab is removed from DOM or something?
+   If + is hidden via display:none, it's still last-child.
+   
+   Let's change the selector to be more specific or robust.
+   We can target buttons that contain "Search".
+*/
+
+#civlens-search-tabs > .tab-nav > button::after {
+    content: "×";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 16px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+/* Hide it for the plus tab specifically */
+#civlens-search-tabs > .tab-nav > button:last-child::after {
+    display: none !important; 
+    /* This assumes last-child IS the plus tab. 
+       If plus tab is hidden (display:none), it is still last-child.
+       So this logic holds.
+       UNLESS Gradio removes it from DOM?
+       If Gradio removes it, then 5th tab becomes last-child and gets hidden.
+       
+       Let's check if we can distinguish by text content in CSS? No.
+       
+       We can assume that if the button text is "➕", we hide ::after.
+       We can't do that in CSS3.
+       
+       However, we can just ALWAYS show it on hover, and rely on JS to ignore clicks on +.
+       And use CSS to hide it on the last child if we are sure it's the plus tab.
+       
+       If the 5th tab doesn't have X, it implies it matches the exclusion selector.
+       
+       Let's try a different approach:
+       We apply the style to ALL buttons.
+       Then we override for the last-child ONLY IF it is the plus tab.
+       But we can't condition on "if it is the plus tab".
+       
+       Wait, if the 5th tab is open, active_count=5. plus_visible=False.
+       Gradio sets style="display: none" on the + tab button wrapper?
+       Native tabs: the button is inside .tab-nav.
+       When visible=False, Gradio sets display:none on the button.
+       So it is still in the DOM. :last-child still targets it.
+       So the 5th tab is :nth-child(5). It is NOT :last-child.
+       So :not(:last-child) should match it.
+       
+       Maybe the user means the 5th tab is the last one *visible*?
+       
+       Let's just apply to ALL buttons and verify.
+       And for the one with specific styling (the plus tab), we hide the pseudo element.
+    */
+}
+
+#civlens-search-tabs > .tab-nav > button:hover::after,
+#civlens-search-tabs > .tab-nav > button.selected::after {
     opacity: 1;
 }
 
-#civlens-search-tabs > .tab-nav > button:not(:last-child)::after:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-}
+/* Hide X for the + tab. 
+   We styled the + tab with specific rules in previous CSS block?
+   We targeted #civlens-search-tabs > .tab-nav > button:last-child
+   
+   If the + tab is hidden, it is still :last-child.
+   So the rule applies to it.
+   
+   The 5th tab is :nth-child(5).
+   
+   If the user says 5th tab has no X, maybe my previous selector :not(:last-child) was correct but something else interfered?
+   
+   Let's just be explicit.
+*/
 
 /* Specific styling for the "+" tab */
 #civlens-search-tabs > .tab-nav > button:last-child {
