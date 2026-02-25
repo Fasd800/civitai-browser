@@ -1243,111 +1243,115 @@ def stop_download(panel_id):
 # =============================================================================
 def make_panel_components(i, api_key_state):
     with gr.Column(visible=i == 0, elem_id=f"civlens-panel-{i}") as col:
+        # 1. Search Bar & Primary Actions
         with gr.Group():
-            gr.Markdown("### 🔎 Search CivitAI")
-            
-            # Primary Search
             with gr.Row():
                 query = gr.Textbox(
-                    label="Search",
+                    label="Search CivitAI",
                     show_label=False,
-                    placeholder="Search models (e.g. 'cyberpunk', 'anime')...",
+                    placeholder="Search models by keyword (e.g. character, style, concept)...",
                     elem_id=f"civlens-query-{i}",
                     scale=5,
                 )
-                search_btn = gr.Button("🔎 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
+                search_btn = gr.Button("🔍 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
 
-            # Basic Filters
+        # 2. Filters & Options
+        with gr.Accordion("Filters & Sorting", open=True):
             with gr.Row():
-                creator_filter = gr.Dropdown(
-                    label="Creator",
-                    choices=creator_dropdown_choices(),
-                    value="— All —",
-                    scale=1,
-                    info="Filter by favorite creator."
-                )
                 model_type = gr.Dropdown(
                     label="Type",
                     choices=["All", "Checkpoint", "LORA", "TextualInversion", "Controlnet", "Hypernetwork", "VAE", "Poses", "Wildcards", "Other"],
                     value="All",
-                    scale=1,
+                    scale=2,
+                    info="Filter by model type"
                 )
                 base_model = gr.Dropdown(
                     label="Base model",
-                    choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z Image Base", "Z Image turbo"],
+                    choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z image Base", "Z Image turbo"],
                     value="Any",
-                    scale=1,
+                    scale=2,
+                    info="Filter by SD version"
                 )
                 sort = gr.Dropdown(
                     label="Sort by",
                     choices=["Most Downloaded", "Highest Rated", "Newest", "Most Liked", "Most Discussed"],
                     value="Newest",
-                    scale=1,
+                    scale=2,
+                    info="Sort order"
                 )
                 period = gr.Dropdown(
                     label="Period",
                     choices=["AllTime", "Year", "Month", "Week", "Day"],
                     value="AllTime",
-                    scale=1,
+                    scale=2,
+                    info="Time range"
                 )
 
-            # Advanced Filters (Collapsed by default)
-            with gr.Accordion("⚙️ Advanced Filters", open=False):
-                with gr.Row():
-                    tag_filter = gr.Textbox(
-                        label="Tags",
-                        placeholder="Comma separated tags (e.g. character, clothing)",
-                        lines=1,
-                        scale=3,
-                    )
-                    refine_btn = gr.Button("✨ Refine Local Results", variant="secondary", scale=1, min_width=110, elem_classes=["btn-refine-orange"])
-                
-                with gr.Row():
-                    content_levels = gr.CheckboxGroup(
-                        label="Content rating",
-                        choices=["PG", "PG-13", "R", "X", "XXX"],
-                        value=["PG", "PG-13", "R", "X", "XXX"],
-                        scale=1,
-                    )
-                    tag_categories = gr.CheckboxGroup(
-                        label="Tag categories",
-                        choices=["Background", "Base model", "Buildings", "Character", "Clothing", "Concept", "Poses", "Style"],
-                        value=[],
-                        scale=1,
-                    )
-
-            # URL Load (Collapsed by default)
-            with gr.Accordion("🔗 Load from URL", open=False):
-                with gr.Row():
-                    url_input = gr.Textbox(
-                        label="Model URL",
-                        show_label=False,
-                        placeholder="Paste a CivitAI model or version URL",
-                        elem_id=f"civlens-url-input-{i}",
-                        scale=5,
-                    )
-                    url_btn = gr.Button("Load URL", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-url-btn-{i}")
-                url_status = gr.Textbox(
-                    label="",
-                    show_label=False,
-                    interactive=False,
+            with gr.Row():
+                creator_filter = gr.Dropdown(
+                    label="Creator",
+                    choices=creator_dropdown_choices(),
+                    value="— All —",
+                    scale=2,
+                    info="Filter by favorite creator"
+                )
+                tag_filter = gr.Textbox(
+                    label="Tags",
+                    placeholder="Comma separated tags...",
                     lines=1,
-                    visible=False,
-                    placeholder="URL status",
+                    scale=3,
+                    info="Filter by specific tags"
                 )
+                refine_btn = gr.Button("✨ Filter Loaded Results", variant="secondary", scale=1, min_width=150, elem_classes=["btn-refine-orange"])
+
+            with gr.Row():
+                content_levels = gr.CheckboxGroup(
+                    label="Content rating",
+                    choices=["PG", "PG-13", "R", "X", "XXX"],
+                    value=["PG", "PG-13", "R", "X", "XXX"],
+                    scale=3,
+                    info="Select allowed content ratings"
+                )
+                tag_categories = gr.CheckboxGroup(
+                    label="Tag categories",
+                    choices=["Background", "Base model", "Buildings", "Character", "Clothing", "Concept", "Poses", "Style"],
+                    value=[],
+                    scale=4,
+                    info="Filter by tag category"
+                )
+
+        # 3. Direct URL Load (Advanced/Specific)
+        with gr.Accordion("Load Specific Model (URL)", open=False):
+            with gr.Row():
+                url_input = gr.Textbox(
+                    label="Model URL",
+                    show_label=False,
+                    placeholder="Paste a CivitAI model or version URL (e.g. https://civitai.com/models/12345)",
+                    elem_id=f"civlens-url-input-{i}",
+                    scale=5,
+                )
+                url_btn = gr.Button("⬇ Load URL", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-url-btn-{i}")
+
+            url_status = gr.Textbox(
+                label="",
+                show_label=False,
+                interactive=False,
+                lines=1,
+                visible=False,
+                placeholder="URL status",
+            )
 
         with gr.Row(equal_height=False):
-            # Results Column (Left)
-            with gr.Column(scale=5, min_width=320):
-                gr.Markdown("### Results")
+            with gr.Column(scale=1, min_width=260):
+                gr.Markdown("Results")
                 gallery = gr.Gallery(
                     label="",
                     show_label=False,
-                    columns=3,
-                    rows=3,
-                    height=600,
+                    columns=2,
+                    rows=4,
+                    height=480,
                     elem_id=f"civlens-gallery-{i}",
-                    object_fit="contain",
+                    object_fit="cover",
                     interactive=False,
                     allow_preview=True,
                 )
@@ -1359,9 +1363,8 @@ def make_panel_components(i, api_key_state):
 
                 gr.HTML(discord_banner_html())
 
-            # Details Column (Right)
-            with gr.Column(scale=4):
-                gr.Markdown("### Model Details")
+            with gr.Column(scale=3):
+                gr.Markdown("Model details")
                 model_header_html = gr.HTML("")
                 version_selector = gr.Dropdown(
                     label="Select the version",
@@ -1449,28 +1452,26 @@ def make_panel_components(i, api_key_state):
                 sd2["items"] = items2
                 model = m2
 
-            dl_label = f"⬇️ Download {val}" if val else "⬇️ Download model"
             return (
                 get_model_header_html(model, sel_version),
                 gr.update(choices=choices, value=val, visible=True, interactive=len(choices) > 1),
                 build_trigger_words_html(get_trigger_words_for_version(sel_version)),
                 get_model_body_html(model, sel_version),
                 sel_url,
-                gr.update(value=dl_label),
                 sd2,
             )
 
         gallery.select(
             fn=on_gallery_select,
             inputs=[search_data],
-            outputs=[model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def on_version_change(vc, sd):
             items = sd.get("items", [])
             idx = sd.get("selected_index", 0)
             if not items or idx >= len(items):
-                return [], "", build_trigger_words_html([]), EMPTY_DETAIL, "", gr.update(), sd
+                return [], "", build_trigger_words_html([]), EMPTY_DETAIL, "", sd
 
             model = items[idx]
             v = get_version_by_choice(model, vc)
@@ -1485,21 +1486,19 @@ def make_panel_components(i, api_key_state):
             sd2["items"] = items2
             levels = sd.get("content_levels", [])
 
-            dl_label = f"⬇️ Download {vc}" if vc else "⬇️ Download model"
             return (
                 build_gallery_data(items2, levels),
                 get_model_header_html(m2, v),
                 build_trigger_words_html(get_trigger_words_for_version(v)),
                 get_model_body_html(m2, v),
                 sel_url,
-                gr.update(value=dl_label),
                 sd2,
             )
 
         version_selector.change(
             fn=on_version_change,
             inputs=[version_selector, search_data],
-            outputs=[gallery, model_header_html, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def load_from_url(url, api_key, levels):
@@ -1525,7 +1524,6 @@ def make_panel_components(i, api_key_state):
                     build_trigger_words_html([]),
                     EMPTY_DETAIL,
                     "",
-                    gr.update(),
                     empty_sd,
                 )
 
@@ -1540,7 +1538,6 @@ def make_panel_components(i, api_key_state):
                     build_trigger_words_html([]),
                     EMPTY_DETAIL,
                     "",
-                    gr.update(),
                     empty_sd,
                 )
 
@@ -1574,7 +1571,6 @@ def make_panel_components(i, api_key_state):
                 "selected_index": 0,
             }
 
-            dl_label = f"⬇️ Download {ver_val}" if ver_val else "⬇️ Download model"
             return (
                 build_gallery_data([m2], levels),
                 gr.update(value=f"Loaded: {model.get('name','?')}", visible=True),
@@ -1584,19 +1580,18 @@ def make_panel_components(i, api_key_state):
                 build_trigger_words_html(get_trigger_words_for_version(selected_ver)),
                 get_model_body_html(m2, selected_ver),
                 sel_url,
-                gr.update(value=dl_label),
                 new_sd,
             )
 
         url_btn.click(
             fn=load_from_url,
             inputs=[url_input, api_key_state, content_levels],
-            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
         url_input.submit(
             fn=load_from_url,
             inputs=[url_input, api_key_state, content_levels],
-            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
@@ -1624,12 +1619,6 @@ def make_panel_components(i, api_key_state):
                     next_page = next2
                     if pages >= 50 or len(all_loaded) >= 5000:
                         break
-
-            # Filter by query locally if searching by creator (since API ignores query in that case)
-            if creator_active and q.strip():
-                qq = q.strip().lower()
-                visible_items = [m for m in visible_items if _matches_query(m, qq)]
-                all_loaded = [m for m in all_loaded if _matches_query(m, qq)]
 
             filtered_visible = _apply_extra_filters(visible_items, cats, tag_text, bm)
             filtered_all = _apply_extra_filters(all_loaded, cats, tag_text, bm)
@@ -1664,26 +1653,25 @@ def make_panel_components(i, api_key_state):
                 build_trigger_words_html([]),
                 EMPTY_DETAIL,
                 "",
-                gr.update(value="⬇️ Download model"),
                 new_sd,
             )
 
         search_btn.click(
             fn=do_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
-            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
         query.submit(
             fn=do_search,
             inputs=[query, model_type, sort, content_levels, api_key_state, creator_filter, period, tag_categories, tag_filter, base_model, search_data],
-            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_next(sd, api_key):
             next_url = sd.get("next_page", "")
             if not next_url:
                 levels = sd.get("content_levels", [])
-                return build_gallery_data(sd.get("items", []), levels), gr.update(value="No more pages.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", gr.update(), sd
+                return build_gallery_data(sd.get("items", []), levels), gr.update(value="No more pages.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(next_url, headers)
@@ -1697,19 +1685,19 @@ def make_panel_components(i, api_key_state):
 
             new_sd = dict(sd)
             new_sd.update({"items": visible_items, "metadata": meta, "all_items": all_items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", gr.update(value="⬇️ Download model"), new_sd
+            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
 
         next_btn.click(
             fn=do_next,
             inputs=[search_data, api_key_state],
-            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_prev(sd, api_key):
             first_url = sd.get("first_page", "")
             if not first_url:
                 levels = sd.get("content_levels", [])
-                return build_gallery_data(sd.get("items", []), levels), gr.update(value="Already on first page.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", gr.update(), sd
+                return build_gallery_data(sd.get("items", []), levels), gr.update(value="Already on first page.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(first_url, headers)
@@ -1722,12 +1710,12 @@ def make_panel_components(i, api_key_state):
 
             new_sd = dict(sd)
             new_sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", gr.update(value="⬇️ Download model"), new_sd
+            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
 
         prev_btn.click(
             fn=do_prev,
             inputs=[search_data, api_key_state],
-            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, page_info, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_refine(q, sd, api_key):
@@ -1763,14 +1751,13 @@ def make_panel_components(i, api_key_state):
                 build_trigger_words_html([]),
                 EMPTY_DETAIL,
                 "",
-                gr.update(value="⬇️ Download model"),
                 sd2,
             )
 
         refine_btn.click(
             fn=do_refine,
             inputs=[query, search_data, api_key_state],
-            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, download_btn, search_data],
+            outputs=[gallery, page_info, url_status, model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
         )
 
         clear_targets = [
@@ -1784,7 +1771,6 @@ def make_panel_components(i, api_key_state):
             trigger_html,
             model_body_html,
             selected_url,
-            download_btn,
             search_data,
         ]
 
@@ -1810,7 +1796,6 @@ def make_panel_components(i, api_key_state):
                 build_trigger_words_html([]),
                 EMPTY_DETAIL,
                 "",
-                gr.update(value="⬇️ Download model"),
                 empty_sd,
             )
 
