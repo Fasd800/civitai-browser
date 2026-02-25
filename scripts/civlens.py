@@ -256,6 +256,17 @@ def _model_matches_tags(model, required_tags):
     return True
 
 
+def _model_matches_any_tag(model, any_tags):
+    if not any_tags:
+        return True
+    tags = [t.lower() for t in (model.get("tags") or [])]
+    tagset = set(tags)
+    for t in any_tags:
+        if (t or "").lower() in tagset:
+            return True
+    return False
+
+
 def _model_matches_base_model(model, base_model_value: str):
     bm = (base_model_value or "").strip()
     if not bm or bm == "Any":
@@ -269,16 +280,17 @@ def _model_matches_base_model(model, base_model_value: str):
 
 
 def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_value):
-    required = []
-    required.extend(_parse_tag_list(tag_filter_text))
-    required.extend(tag_categories or [])
-    if not required and (not base_model_value or base_model_value == "Any"):
+    required_text_tags = _parse_tag_list(tag_filter_text)
+    category_tags = list(tag_categories or [])
+    if not required_text_tags and not category_tags and (not base_model_value or base_model_value == "Any"):
         return list(items or [])
     out = []
     for m in items or []:
         if not _model_matches_base_model(m, base_model_value):
             continue
-        if not _model_matches_tags(m, required):
+        if not _model_matches_tags(m, required_text_tags):
+            continue
+        if not _model_matches_any_tag(m, category_tags):
             continue
         out.append(m)
     return out
