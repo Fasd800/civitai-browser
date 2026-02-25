@@ -1,4 +1,14 @@
-# CivLens
+# CivLens - CivitAI Browser Extension for Stable Diffusion WebUI
+#
+# This extension allows users to browse, search, filter, preview, and download models
+# directly from CivitAI within the Automatic1111 / SD.Next / Forge WebUI.
+#
+# Features:
+# - Multi-tab searching
+# - Advanced filtering (Tags, Types, Creators, Content Level)
+# - One-click downloads with preview images
+# - Direct URL loading
+# - "Send to Tab" functionality for comparing models
 
 import gradio as gr
 import requests
@@ -16,17 +26,24 @@ import modules.scripts as scripts  # noqa: F401 (kept for SD WebUI extension con
 from modules import shared, script_callbacks
 
 # =============================================================================
-# CONSTANTS
+# CONSTANTS & CONFIGURATION
 # =============================================================================
+
+# Base API endpoints for CivitAI
 CIVITAI_API = "https://civitai.com/api/v1"
 DOWNLOAD_URL = "https://civitai.com/api/download/models"
 
+# Extension directory paths
 EXTENSION_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SETTINGS_FILE = os.path.join(EXTENSION_DIR, "settings.json")
 
+# Community link
 _DISCORD_INVITE = "https://discord.gg/bqP8qVp8XS"
+
+# Maximum number of simultaneous search tabs allowed
 MAX_TABS = 5
 
+# Mapping from CivitAI model types to local WebUI folder paths
 MODEL_DIRS = {
     "Checkpoint": "models/Stable-diffusion",
     "LORA": "models/Lora",
@@ -38,8 +55,10 @@ MODEL_DIRS = {
     "Wildcards": "models/Wildcards",
     "Other": "models/other",
 }
+# Normalized keys for case-insensitive lookups
 _MODEL_DIRS_NORM = {k.strip().lower(): v for k, v in MODEL_DIRS.items()}
 
+# Visual badges colors for different model types
 TYPE_COLORS = {
     "LORA": "#7c3aed",
     "Checkpoint": "#1d4ed8",
@@ -52,17 +71,30 @@ TYPE_COLORS = {
     "Other": "#374151",
 }
 
+# Request rate limiting and retry logic globals
 _LAST_REQ_TS = 0.0
-_RATE_MIN_INTERVAL = 0.5
-_TAG_CACHE = {}
+_RATE_MIN_INTERVAL = 0.5  # Seconds between requests
+_TAG_CACHE = {}  # Cache for tag resolution (query -> resolved name)
+
+# Configure a robust HTTP session with retries
 _SESSION = requests.Session()
 _RETRY = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(["GET"]))
 _SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
 _SESSION.mount("http://", HTTPAdapter(max_retries=_RETRY))
+
+# Track active downloads to provide UI progress updates
 _DOWNLOAD_JOBS = {}
 _DOWNLOAD_JOBS_LOCK = threading.Lock()
 
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
 def _is_allowed_url(url: str) -> bool:
+    """
+    Validates that the URL belongs to CivitAI and uses HTTPS.
+    Prevents SSRF or downloading from unauthorized domains.
+    """
     if not url:
         return False
     try:
@@ -78,10 +110,17 @@ def _is_allowed_url(url: str) -> bool:
         return False
     return True
 
+
 def _escape_html(text) -> str:
+    """Safe HTML escaping for rendering user content."""
     return html.escape(str(text if text is not None else ""), quote=True)
 
+
 def _sanitize_filename(name: str) -> str:
+    """
+    Sanitizes filenames to be safe for the filesystem.
+    Removes invalid characters and limits length.
+    """
     clean = os.path.basename(str(name or ""))
     clean = clean.replace("\x00", "")
     clean = re.sub(r"[<>:\"/\\\\|?*\n\r\t]+", "_", clean).strip()
@@ -89,14 +128,22 @@ def _sanitize_filename(name: str) -> str:
         return "model.safetensors"
     return clean[:180]
 
+
 def _safe_join(base: str, name: str) -> str:
+    """
+    Safely joins a base directory and a filename, preventing directory traversal.
+    """
     base_abs = os.path.abspath(base)
     dest = os.path.abspath(os.path.join(base_abs, name))
     if os.path.commonpath([base_abs, dest]) != base_abs:
         return os.path.join(base_abs, os.path.basename(name))
     return dest
 
+
 def _safe_get(url, headers=None, params=None, timeout=15, stream=False):
+    """
+    Wrapper for requests.get with rate limiting and domain validation.
+    """
     if not _is_allowed_url(url):
         raise ValueError("Blocked URL")
     global _LAST_REQ_TS
@@ -105,7 +152,10 @@ def _safe_get(url, headers=None, params=None, timeout=15, stream=False):
     if wait > 0:
         time.sleep(wait)
     _LAST_REQ_TS = time.time()
+    
     r = _SESSION.get(url, headers=headers or {}, params=params, timeout=timeout, stream=stream)
+    
+    # Handle rate limiting (429) explicitly
     if r.status_code == 429:
         ra = r.headers.get("Retry-After")
         try:
@@ -114,13 +164,17 @@ def _safe_get(url, headers=None, params=None, timeout=15, stream=False):
             delay = 2.0
         time.sleep(min(delay, 5.0))
         r = _SESSION.get(url, headers=headers or {}, params=params, timeout=timeout, stream=stream)
+    
     r.raise_for_status()
     return r
 
+
 # =============================================================================
-# SETTINGS
+# SETTINGS MANAGEMENT
 # =============================================================================
+
 def load_settings():
+    """Loads extension settings (API key, favorites) from JSON file."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
@@ -131,6 +185,7 @@ def load_settings():
 
 
 def save_settings(settings: dict):
+    """Saves extension settings to JSON file."""
     try:
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2, ensure_ascii=False)
@@ -141,14 +196,20 @@ def save_settings(settings: dict):
 
 
 def get_favorite_creators():
+    """Retrieves list of favorite creators."""
     return load_settings().get("favorite_creators", [])
 
 
 def creator_dropdown_choices():
+    """Returns dropdown choices for creators filter."""
     return ["— All —"] + get_favorite_creators()
 
 
 def get_model_dir(model_type):
+    """
+    Determines the destination directory for a given model type.
+    Falls back to 'models/other' if unknown.
+    """
     base = getattr(shared, "data_path", ".")
     key = (model_type or "Other").strip().lower()
     rel = _MODEL_DIRS_NORM.get(key, _MODEL_DIRS_NORM.get("other", "models/other"))
@@ -156,9 +217,14 @@ def get_model_dir(model_type):
 
 
 # =============================================================================
-# URL PARSING
+# URL PARSING & API INTERACTION
 # =============================================================================
+
 def parse_civitai_url(url: str):
+    """
+    Extracts model ID and version ID from a CivitAI URL.
+    Returns (model_id, version_id) tuple.
+    """
     url = url.strip()
     m = re.search(r"civitai\.com/models/(\d+)", url)
     if not m:
@@ -170,6 +236,7 @@ def parse_civitai_url(url: str):
 
 
 def fetch_model_by_id(model_id: str, api_key: str):
+    """Fetches full model metadata from CivitAI API by ID."""
     headers = {}
     if api_key.strip():
         headers["Authorization"] = f"Bearer {api_key.strip()}"
@@ -182,10 +249,11 @@ def fetch_model_by_id(model_id: str, api_key: str):
         return None, str(e)
 
 
-# =============================================================================
-# CIVITAI API HELPERS
-# =============================================================================
 def resolve_tag(query, headers):
+    """
+    Resolves a loose tag query to the canonical tag name used by CivitAI.
+    Uses caching to avoid repeated requests.
+    """
     q = (query or "").strip()
     if q in _TAG_CACHE:
         return _TAG_CACHE[q]
@@ -193,6 +261,7 @@ def resolve_tag(query, headers):
         r = _safe_get(f"{CIVITAI_API}/tags", headers=headers, params={"query": q, "limit": 5}, timeout=10)
         items = r.json().get("items", [])
         if items:
+            # Pick the tag with the highest model count as the most likely candidate
             name = max(items, key=lambda x: x.get("modelCount", 0)).get("name", q)
             _TAG_CACHE[q] = name
             return name
@@ -202,10 +271,15 @@ def resolve_tag(query, headers):
 
 
 def _get_headers(api_key):
+    """Constructs API headers with authentication if key is provided."""
     return {"Authorization": f"Bearer {api_key.strip()}"} if api_key.strip() else {}
 
 
 def _fetch_url(url, headers):
+    """
+    Fetches a list of models from a search URL.
+    Returns (items, metadata, next_page_url).
+    """
     try:
         r = _safe_get(url, headers=headers, timeout=15)
         data = r.json()
@@ -216,7 +290,12 @@ def _fetch_url(url, headers):
         return [], {}, ""
 
 
+# =============================================================================
+# SEARCH FILTERS & MATCHING LOGIC
+# =============================================================================
+
 def _matches_query(model, q: str) -> bool:
+    """Local text search match against model name, tags, or version names."""
     return (
         q in model.get("name", "").lower()
         or any(q in t.lower() for t in model.get("tags", []))
@@ -225,6 +304,7 @@ def _matches_query(model, q: str) -> bool:
 
 
 def _parse_tag_list(s: str):
+    """Parses a comma-separated string of tags into a list."""
     raw = (s or "").strip()
     if not raw:
         return []
@@ -234,6 +314,7 @@ def _parse_tag_list(s: str):
         t = (p or "").strip()
         if t:
             out.append(t)
+    # Dedup preserving order
     seen = set()
     dedup = []
     for t in out:
@@ -246,6 +327,7 @@ def _parse_tag_list(s: str):
 
 
 def _model_matches_tags(model, required_tags):
+    """Checks if model contains ALL required tags (AND logic)."""
     if not required_tags:
         return True
     tags = [t.lower() for t in (model.get("tags") or [])]
@@ -257,6 +339,7 @@ def _model_matches_tags(model, required_tags):
 
 
 def _model_matches_any_tag(model, any_tags):
+    """Checks if model contains ANY of the provided tags (OR logic)."""
     if not any_tags:
         return True
     tags = [t.lower() for t in (model.get("tags") or [])]
@@ -268,6 +351,7 @@ def _model_matches_any_tag(model, any_tags):
 
 
 def _model_matches_base_model(model, base_model_value: str):
+    """Checks if any version of the model matches the selected base model (SDXL, SD1.5, etc.)."""
     bm = (base_model_value or "").strip()
     if not bm or bm == "Any":
         return True
@@ -280,6 +364,7 @@ def _model_matches_base_model(model, base_model_value: str):
 
 
 def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_value):
+    """Applies client-side filtering for tags, categories, and base model."""
     required_text_tags = _parse_tag_list(tag_filter_text)
     category_tags = list(tag_categories or [])
     if not required_text_tags and not category_tags and (not base_model_value or base_model_value == "Any"):
@@ -296,23 +381,25 @@ def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_valu
     return out
 
 
+# Content rating mappings
 _CONTENT_LEVEL_ORDER = {"PG": 0, "PG-13": 1, "R": 2, "X": 3, "XXX": 4}
 
 
 def _normalize_content_level(value):
+    """Normalizes various API content level formats to standard labels."""
     if value is None:
         return "PG"
     if isinstance(value, bool):
         return "XXX" if value else "PG"
     if isinstance(value, (int, float)):
         idx = int(value)
-        # CivitAI Enum: 1=PG, 2=PG13, 4=R, 8=X, 16=XXX
+        # CivitAI Enum mapping
         if idx == 1: return "PG"
         if idx == 2: return "PG-13"
         if idx == 4: return "R"
         if idx == 8: return "X"
         if idx == 16: return "XXX"
-        # Fallback/Safe defaults
+        # Fallbacks for bitmasks or odd values
         if idx <= 1: return "PG"
         if idx <= 2: return "PG-13"
         if idx <= 4: return "R"
@@ -321,17 +408,8 @@ def _normalize_content_level(value):
     if isinstance(value, str):
         raw = value.strip().upper()
         if raw.isdigit():
-            idx = int(raw)
-            if idx == 1: return "PG"
-            if idx == 2: return "PG-13"
-            if idx == 4: return "R"
-            if idx == 8: return "X"
-            if idx == 16: return "XXX"
-            if idx <= 1: return "PG"
-            if idx <= 2: return "PG-13"
-            if idx <= 4: return "R"
-            if idx <= 8: return "X"
-            return "XXX"
+            # Handle numeric strings recursively
+            return _normalize_content_level(int(raw))
         raw = raw.replace("PG13", "PG-13")
         if raw in {"SAFE", "SFW", "NONE"}:
             return "PG"
@@ -347,35 +425,37 @@ def _normalize_content_level(value):
 
 
 def _allowed_content_levels(levels):
+    """Returns set of allowed content level strings."""
     if not levels:
         return set(_CONTENT_LEVEL_ORDER.keys())
     return {_normalize_content_level(lvl) for lvl in levels if (lvl or "").strip()}
 
 
 def _model_content_level(model):
+    """
+    Determines the highest content level of a model by checking all its versions/images.
+    """
     direct = model.get("nsfwLevel", None)
     if direct is not None:
         return _normalize_content_level(direct)
     direct = model.get("nsfw", None)
     if direct is not None:
         return _normalize_content_level(direct)
+    
     max_rank = 0
     for v in model.get("modelVersions", []) or []:
-        v_lvl = v.get("nsfwLevel", None)
+        # Check version level
+        v_lvl = v.get("nsfwLevel", v.get("nsfw", None))
         if v_lvl is not None:
             max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(v_lvl), 0))
-            continue
-        v_lvl = v.get("nsfw", None)
-        if v_lvl is not None:
-            max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(v_lvl), 0))
+        
+        # Check image levels
         for img in v.get("images", []) or []:
-            i_lvl = img.get("nsfwLevel", None)
+            i_lvl = img.get("nsfwLevel", img.get("nsfw", None))
             if i_lvl is not None:
                 max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(i_lvl), 0))
-                continue
-            i_lvl = img.get("nsfw", None)
-            if i_lvl is not None:
-                max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(i_lvl), 0))
+    
+    # Reverse lookup rank to label
     for k, v in _CONTENT_LEVEL_ORDER.items():
         if v == max_rank:
             return k
@@ -383,10 +463,13 @@ def _model_content_level(model):
 
 
 def _model_matches_content_levels(model, levels):
+    """Checks if a model should be shown based on user content filter settings."""
     allowed = _allowed_content_levels(levels)
     versions = model.get("modelVersions", []) or []
     has_images = False
     has_known_level = False
+    
+    # Optimistic check: if any image is allowed, show the model
     for v in versions:
         for img in v.get("images", []) or []:
             has_images = True
@@ -396,15 +479,20 @@ def _model_matches_content_levels(model, levels):
                 if _normalize_content_level(raw) in allowed:
                     return True
             else:
+                # If image has no level, assume PG
                 if "PG" in allowed:
                     return True
+    
+    # If no specific images matched, check model-level aggregate
     if has_images and has_known_level:
         return False
+    
     level = _model_content_level(model)
     return level in allowed
 
 
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
+    """Constructs the API URL for searching models."""
     include_nsfw = any((lvl or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for lvl in content_levels)
     params = {
         "limit": 20,
@@ -418,7 +506,7 @@ def build_search_url(query, model_type, sort, content_levels, api_key, creator_f
 
     if creator_filter and creator_filter != "— All —":
         params["username"] = creator_filter
-        params["limit"] = 100
+        params["limit"] = 100  # Fetch more for creators to allow local filtering
     elif query.strip():
         if use_tag:
             params["tag"] = query.strip()
@@ -431,6 +519,10 @@ def build_search_url(query, model_type, sort, content_levels, api_key, creator_f
 
 
 def search_first_page(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime"):
+    """
+    Performs the initial search request.
+    If searching by text, it tries both 'query' search and 'tag' search to maximize results.
+    """
     headers = _get_headers(api_key)
     creator_active = creator_filter and creator_filter != "— All —"
 
@@ -440,6 +532,7 @@ def search_first_page(query, model_type, sort, content_levels, api_key, creator_
         return items, meta, next_page, url
 
     if query.strip():
+        # Dual strategy: Search by text query AND by resolved tag
         url_query = build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period, use_tag=False)
         items_query, meta1, next_q = _fetch_url(url_query, headers)
 
@@ -447,12 +540,14 @@ def search_first_page(query, model_type, sort, content_levels, api_key, creator_
         url_tag = build_search_url(resolved, model_type, sort, content_levels, api_key, creator_filter, period, use_tag=True)
         items_tag, meta2, next_t = _fetch_url(url_tag, headers)
 
+        # If query results are poor but tag results are good, prefer tags
         if len(items_query) < 5 and items_tag:
             return items_tag, meta2, next_t, url_tag
 
         if not items_query and not items_tag:
             return [], {}, "", url_query
 
+        # Merge results without duplicates
         seen = set()
         items = []
         for item in (items_query + items_tag):
@@ -464,17 +559,21 @@ def search_first_page(query, model_type, sort, content_levels, api_key, creator_
 
         total_q = int(meta1.get("totalItems") or 0)
         total_t = int(meta2.get("totalItems") or 0)
+        
+        # Return the strategy that yielded more total items (for pagination consistency)
         if total_q >= total_t:
             return items, meta1, next_q, url_query
         else:
             return items, meta2, next_t, url_tag
 
+    # Default empty search (browse mode)
     url = build_search_url("", model_type, sort, content_levels, api_key, creator_filter, period)
     items, meta, next_page = _fetch_url(url, headers)
     return items, meta, next_page, url
 
 
 def search_creator_on_civitai(query, api_key):
+    """Autocomplete helper for finding creators."""
     headers = _get_headers(api_key)
     try:
         r = _safe_get(f"{CIVITAI_API}/creators", headers=headers, params={"query": query, "limit": 10}, timeout=10)
@@ -484,13 +583,16 @@ def search_creator_on_civitai(query, api_key):
 
 
 # =============================================================================
-# MODEL HELPERS
+# MODEL DATA HELPERS
 # =============================================================================
+
 def _version_label(v):
+    """Formats version dropdown label."""
     return f"{v.get('name', '?')} — base: {v.get('baseModel', '?')}"
 
 
 def get_version_by_choice(model, version_choice):
+    """Retrieves specific version object from model based on dropdown string."""
     versions = model.get("modelVersions", [])
     if not versions:
         return None
@@ -501,13 +603,20 @@ def get_version_by_choice(model, version_choice):
 
 
 def get_trigger_words_for_version(version):
+    """Extracts trigger words list from version."""
     return version.get("trainedWords", []) if version else []
 
 
 def _pick_model_preview_image_url(model: dict, allowed_levels=None):
+    """
+    Selects the best preview image for a model (gallery thumbnail).
+    Respects selected version state and content filters.
+    """
     versions = model.get("modelVersions", []) or []
     sel_id = model.get("_civitai_selected_version_id", None)
     ordered = []
+    
+    # Prioritize the selected version if set
     if sel_id is not None:
         for v in versions:
             if str(v.get("id")) == str(sel_id):
@@ -517,6 +626,7 @@ def _pick_model_preview_image_url(model: dict, allowed_levels=None):
         ordered += [v for v in versions if str(v.get("id")) != str(sel_id)]
     else:
         ordered = list(versions)
+        
     for v in ordered:
         thumb = _pick_version_preview_image_url(v or {}, allowed_levels=allowed_levels)
         if thumb:
@@ -525,10 +635,12 @@ def _pick_model_preview_image_url(model: dict, allowed_levels=None):
 
 
 def _has_thumbnail(model, allowed_levels=None):
+    """Checks if a model has a valid thumbnail to display."""
     return bool(_pick_model_preview_image_url(model, allowed_levels=allowed_levels))
 
 
 def build_gallery_data(items, allowed_levels=None):
+    """Builds the list of (image, caption) tuples for Gradio gallery."""
     gallery = []
     for m in items:
         thumb = _pick_model_preview_image_url(m or {}, allowed_levels=allowed_levels)
@@ -538,6 +650,10 @@ def build_gallery_data(items, allowed_levels=None):
 
 
 def _pick_version_preview_image_url(version: dict, allowed_levels=None):
+    """
+    Selects a valid image URL from a specific version.
+    Filters out videos and non-image types.
+    """
     if not version:
         return ""
     allowed = _allowed_content_levels(allowed_levels)
@@ -559,9 +675,11 @@ def _pick_version_preview_image_url(version: dict, allowed_levels=None):
 
 
 # =============================================================================
-# HTML BUILDERS
+# HTML COMPONENT BUILDERS
 # =============================================================================
+
 def build_trigger_words_html(words):
+    """Generates HTML pills for copyable trigger words."""
     if not words:
         return (
             "<div style='padding:8px 10px;background:#111;border-radius:8px;"
@@ -572,6 +690,7 @@ def build_trigger_words_html(words):
     pills = []
     for w in words:
         esc = _escape_html(w)
+        # JavaScript for click-to-copy behavior
         pills.append(
             "<span "
             "data-word=\"" + esc + "\" "
@@ -608,6 +727,7 @@ def build_trigger_words_html(words):
 
 
 def sanitize_description_html(raw: str) -> str:
+    """Removes unsafe tags and attributes from description HTML."""
     if not raw:
         return ""
     safe = re.sub(r"<(script|style|iframe|object|embed|form|input|button)[^>]*?>.*?</\\1>", "", raw, flags=re.IGNORECASE | re.DOTALL)
@@ -615,12 +735,14 @@ def sanitize_description_html(raw: str) -> str:
     safe = re.sub(r"on\\w+\\s*=\\s*\"[^\"]*\"", "", safe, flags=re.IGNORECASE)
     safe = re.sub(r"on\\w+\\s*=\\s*'[^']*'", "", safe, flags=re.IGNORECASE)
     safe = re.sub(r"on\\w+\\s*=\\s*[^\\s>]+", "", safe, flags=re.IGNORECASE)
+    # Disable javascript/data links
     safe = re.sub(r"(?i)\\b(href|src)\\s*=\\s*([\"'])\\s*javascript:[^\"']*\\2", r"\\1=\"#\"", safe)
     safe = re.sub(r"(?i)\\b(href|src)\\s*=\\s*([\"'])\\s*data:[^\"']*\\2", r"\\1=\"#\"", safe)
     return safe.strip()
 
 
 def _has_meaningful_html(html: str) -> bool:
+    """Checks if HTML contains visible text content."""
     if not html:
         return False
     txt = re.sub(r"<[^>]+>", "", html)
@@ -629,6 +751,7 @@ def _has_meaningful_html(html: str) -> bool:
 
 
 def build_open_link_html(model, version=None):
+    """Creates the 'Open on CivitAI' button link."""
     mid = model.get("id", "")
     if not mid:
         return ""
@@ -645,6 +768,7 @@ def build_open_link_html(model, version=None):
 
 
 def get_model_header_html(model, version=None):
+    """Generates the model title card with badges and stats."""
     if not model:
         return ""
 
@@ -690,6 +814,7 @@ def get_model_header_html(model, version=None):
 
 
 def get_model_body_html(model, version=None):
+    """Generates the model description details block (Description, About Version, Notes)."""
     if not model:
         return EMPTY_DETAIL
 
@@ -773,130 +898,8 @@ def get_model_body_html(model, version=None):
     )
 
 
-def get_model_detail_html(model, version=None):
-    if not model:
-        return EMPTY_DETAIL
-
-    if version is None and model.get("modelVersions"):
-        version = model["modelVersions"][0]
-
-    vername = version.get("name", "?") if version else "?"
-    verbasemodel = version.get("baseModel", "?") if version else "?"
-    verdate = (version.get("createdAt") or "")[:10] if version else ""
-
-    rawdesc = model.get("description") or ""
-    if not rawdesc and version:
-        rawdesc = version.get("description") or ""
-    safedesc = sanitize_description_html(rawdesc)
-
-    desc_html = (
-        "<details style='margin-top:10px'>"
-        "<summary style='cursor:pointer;padding:8px 12px;background:#1e2a1e;border-radius:6px;"
-        "border-left:3px solid #4ade80;color:#4ade80;font-size:12px;font-weight:700;"
-        "list-style:none;user-select:none'>Description</summary>"
-        "<div style='padding:10px 12px;background:#161f16;border-radius:0 0 6px 6px;"
-        "color:#d1d5db;font-size:12px;line-height:1.8;border:1px solid #2a3a2a;border-top:none;"
-        "max-height:340px;overflow-y:auto;word-break:break-word'>"
-        "<style scoped>"
-        ".civitai-desc h1,.civitai-desc h2,.civitai-desc h3{color:#e0e7ff;margin:10px 0 4px;font-size:13px;font-weight:700}"
-        ".civitai-desc p{margin:4px 0}"
-        ".civitai-desc ul,.civitai-desc ol{padding-left:18px;margin:4px 0}"
-        ".civitai-desc li{margin:2px 0}"
-        ".civitai-desc a{color:#60a5fa;text-decoration:underline}"
-        ".civitai-desc strong,.civitai-desc b{color:#fff}"
-        ".civitai-desc em,.civitai-desc i{color:#d1d5db}"
-        ".civitai-desc code{background:#0d1117;padding:1px 5px;border-radius:4px;font-family:monospace;color:#a78bfa}"
-        ".civitai-desc hr{border-color:#1f2937;margin:8px 0}"
-        ".civitai-desc img{max-width:100%;border-radius:6px;margin:4px 0}"
-        "</style>"
-        f"<div class='civitai-desc'>{safedesc or '<i style=\"color:#6b7280\">No description available.</i>'}</div>"
-        "</div></details>"
-    )
-    about_html = ""
-    ver_desc = sanitize_description_html((version or {}).get("description") or "")
-    if _has_meaningful_html(ver_desc):
-        about_html = (
-            "<details style='margin-top:10px'>"
-            "<summary style='cursor:pointer;padding:8px 12px;background:#1b2332;border-radius:6px;"
-            "border-left:3px solid #60a5fa;color:#60a5fa;font-size:12px;font-weight:700;"
-            "list-style:none;user-select:none'>About this version</summary>"
-            "<div style='padding:10px 12px;background:#121926;border-radius:0 0 6px 6px;"
-            "color:#d1d5db;font-size:12px;line-height:1.8;border:1px solid #233046;border-top:none;"
-            "max-height:260px;overflow-y:auto;word-break:break-word'>"
-            f"<div class='civitai-desc'>{ver_desc}</div>"
-            "</div></details>"
-        )
-
-    notes_html = ""
-    ver_notes_raw = ""
-    if version:
-        for k in ["changelog", "changeNotes", "versionNotes", "notes", "changes", "about", "updateNotes"]:
-            v = version.get(k)
-            if isinstance(v, str) and v.strip():
-                ver_notes_raw = v
-                break
-    ver_notes = sanitize_description_html(ver_notes_raw)
-    if _has_meaningful_html(ver_notes):
-        notes_html = (
-            "<details style='margin-top:10px'>"
-            "<summary style='cursor:pointer;padding:8px 12px;background:#2a2209;border-radius:6px;"
-            "border-left:3px solid #fbbf24;color:#fbbf24;font-size:12px;font-weight:700;"
-            "list-style:none;user-select:none'>Version changes or notes</summary>"
-            "<div style='padding:10px 12px;background:#1a1407;border-radius:0 0 6px 6px;"
-            "color:#d1d5db;font-size:12px;line-height:1.8;border:1px solid #3a2b10;border-top:none;"
-            "max-height:260px;overflow-y:auto;word-break:break-word'>"
-            f"<div class='civitai-desc'>{ver_notes}</div>"
-            "</div></details>"
-        )
-
-    stats = model.get("stats", {}) or {}
-    downloads = stats.get("downloadCount", 0)
-    rating = float(stats.get("rating", 0) or 0)
-    ratingcnt = int(stats.get("ratingCount", 0) or 0)
-    creator = _escape_html((model.get("creator") or {}).get("username", "NA"))
-    modeltype_raw = model.get("type", "Other")
-    modeltype = _escape_html(modeltype_raw)
-    typecolor = TYPE_COLORS.get(modeltype_raw, "#374151")
-    tags = model.get("tags", [])[:6]
-    model_name = _escape_html(model.get("name", "NA"))
-
-    tags_html = ""
-    if tags:
-        tags_html = "<div style='margin-top:8px'>" + "".join(
-            f"<span style='display:inline-block;padding:2px 8px;margin:2px;background:#1c1c2e;border:1px solid #374151;"
-            f"border-radius:12px;color:#9ca3af;font-size:10px'>{_escape_html(t)}</span>"
-            for t in tags
-        ) + "</div>"
-
-    stars = ""
-    if ratingcnt > 0:
-        stars = (
-            "<span style='background:#2a2209;border:1px solid #92400e;color:#fbbf24;"
-            "padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>"
-            f"{rating:.1f} ★ ({ratingcnt:,})</span>"
-        )
-
-    return (
-        "<div style='padding:12px 14px;font-family:sans-serif;color:#e0e0e0'>"
-        "<div style='margin-bottom:10px'>"
-        "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px'>"
-        f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{model_name}</h3>"
-        f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
-        "</div>"
-        "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap'>"
-        f"<span style='background:#1e2d3d;border:1px solid #1d4ed8;color:#60a5fa;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{creator}</span>"
-        f"<span style='background:#1a2e1a;border:1px solid #166534;color:#34d399;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{downloads:,} downloads</span>"
-        f"{stars}"
-        "</div>"
-        f"{tags_html}"
-        f"{about_html}"
-        f"{notes_html}"
-        f"{desc_html}"
-        "</div></div>"
-    )
-
-
 def discord_banner_html():
+    """Generates the Discord invitation banner."""
     return (
         "<div style='padding:10px 14px;margin-top:10px;background:linear-gradient(135deg,#1e1f2e 0%,#2b2d42 100%);"
         "border:1px solid #5865F2;border-radius:10px;display:flex;align-items:center;gap:10px;"
@@ -914,6 +917,10 @@ def discord_banner_html():
 
 
 def render_tab_bar(count, active):
+    """
+    Renders the custom tab navigation bar HTML.
+    Note: Now largely handled by JS, but this sets initial structure.
+    """
     ICON_SEARCH = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>'
     ICON_CLOSE = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
     ICON_ADD = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>'
@@ -964,9 +971,11 @@ EMPTY_DETAIL = (
 )
 
 # =============================================================================
-# DOWNLOAD
+# DOWNLOAD LOGIC
 # =============================================================================
+
 def _pick_download_url_and_name(version: dict):
+    """Finds the primary file download URL and filename from version data."""
     files = version.get("files", []) if version else []
     if not files:
         return None, None
@@ -977,6 +986,7 @@ def _pick_download_url_and_name(version: dict):
 
 
 def _pick_first_image_url(version: dict):
+    """Finds first valid image URL for preview download."""
     if not version:
         return None
     allowed = {".png", ".jpg", ".jpeg"}
@@ -991,6 +1001,7 @@ def _pick_first_image_url(version: dict):
 
 
 def _render_progress_html(percent, done, total, filename):
+    """Renders visual progress bar HTML."""
     percent = max(0, min(100, int(percent or 0)))
     done_mb = (done or 0) / 1024 / 1024
     total_mb = (total or 0) / 1024 / 1024
@@ -1004,11 +1015,14 @@ def _render_progress_html(percent, done, total, filename):
         "</div>"
     )
 
+
+# Download job state management
 def _download_job_key(panel_id):
     return str(panel_id)
 
 
 def _download_job_snapshot(panel_id):
+    """Safely retrieves a copy of the current download job state."""
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         job = _DOWNLOAD_JOBS.get(key)
@@ -1016,6 +1030,7 @@ def _download_job_snapshot(panel_id):
 
 
 def _update_download_job(panel_id, **updates):
+    """Updates the state of an active download job."""
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         job = _DOWNLOAD_JOBS.get(key)
@@ -1025,6 +1040,7 @@ def _update_download_job(panel_id, **updates):
 
 
 def _cancel_sleep(seconds, cancel_event):
+    """Sleep that can be interrupted by a cancel event."""
     if not seconds:
         return
     end = time.time() + float(seconds)
@@ -1035,6 +1051,7 @@ def _cancel_sleep(seconds, cancel_event):
 
 
 def _download_get(url, headers, cancel_event, stream=False, timeout=(10, 5)):
+    """Request wrapper that supports cancellation."""
     if cancel_event and cancel_event.is_set():
         raise RuntimeError("Cancelled")
     if not _is_allowed_url(url):
@@ -1055,6 +1072,7 @@ def _download_get(url, headers, cancel_event, stream=False, timeout=(10, 5)):
 
 
 def poll_download(panel_id):
+    """Timer callback to fetch latest download progress for UI."""
     job = _download_job_snapshot(panel_id)
     if not job:
         return gr.update(), gr.update(), gr.update(active=False)
@@ -1069,6 +1087,7 @@ def poll_download(panel_id):
     finished = bool(job.get("finished"))
     timer_update = gr.update(active=(not finished))
 
+    # Optimization: only send updates if something changed to reduce UI flicker
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         live = _DOWNLOAD_JOBS.get(key) or {}
@@ -1084,6 +1103,7 @@ def poll_download(panel_id):
 
 
 def _download_worker(panel_id, model, version, api_key):
+    """Background thread function that performs the actual file download."""
     job = _download_job_snapshot(panel_id) or {}
     cancel_event = job.get("cancel_event")
 
@@ -1098,6 +1118,8 @@ def _download_worker(panel_id, model, version, api_key):
     filename = _sanitize_filename(filename)
 
     dest = _safe_join(save_dir, filename)
+    
+    # Check if file already exists
     if os.path.exists(dest):
         existing = os.path.getsize(dest)
         _update_download_job(panel_id, filename=filename, done=existing, total=existing, percent=100, status=f"Already exists: {filename}", finished=True)
@@ -1121,8 +1143,9 @@ def _download_worker(panel_id, model, version, api_key):
             last_pct = -1
             last_ui_ts = 0.0
             with open(dest, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1 << 20):
+                for chunk in r.iter_content(chunk_size=1 << 20):  # 1MB chunks
                     if cancel_event and cancel_event.is_set():
+                        # Cleanup on cancel
                         try:
                             f.close()
                         except Exception:
@@ -1142,6 +1165,7 @@ def _download_worker(panel_id, model, version, api_key):
                     done += len(chunk)
                     pct = int((done / total) * 100.0) if total > 0 else 0
                     now = time.time()
+                    # Throttle status updates to avoid overwhelming Gradio
                     if pct != last_pct or (now - last_ui_ts) > 0.8:
                         _update_download_job(panel_id, done=done, total=total, percent=pct, status=f"Downloading: {filename} ({done/1024/1024:.1f} MB)")
                         last_pct = pct
@@ -1151,6 +1175,7 @@ def _download_worker(panel_id, model, version, api_key):
         total_mb = total / 1024 / 1024 if total else 0
         msg = (f"Downloaded: {filename} ({size_mb:.1f}/{total_mb:.1f} MB) to {save_dir}" if total_mb > 0 else f"Downloaded: {filename} ({size_mb:.1f} MB) to {save_dir}")
 
+        # Optional: Download preview image for LORAs
         if (model_type or "").strip().lower() == "lora":
             img_url = _pick_first_image_url(version)
             if img_url:
@@ -1192,6 +1217,7 @@ def _download_worker(panel_id, model, version, api_key):
 
 
 def start_download(search_data, version_choice, api_key, panel_id):
+    """Initiates a download thread for the selected model version."""
     items = search_data.get("items", [])
     idx = search_data.get("selected_index", 0)
     if not items or idx >= len(items):
@@ -1205,6 +1231,7 @@ def start_download(search_data, version_choice, api_key, panel_id):
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         existing = _DOWNLOAD_JOBS.get(key)
+        # Don't start if already running
         if existing and existing.get("thread") and existing["thread"].is_alive():
             return poll_download(panel_id)
 
@@ -1232,6 +1259,7 @@ def start_download(search_data, version_choice, api_key, panel_id):
 
 
 def stop_download(panel_id):
+    """Signals the active download thread to cancel."""
     key = _download_job_key(panel_id)
     with _DOWNLOAD_JOBS_LOCK:
         job = _DOWNLOAD_JOBS.get(key)
@@ -1243,14 +1271,20 @@ def stop_download(panel_id):
 
 
 # =============================================================================
-# UI PANELS
+# UI COMPONENTS & LAYOUT
 # =============================================================================
+
 def make_panel_components(i, api_key_state, close_tab_fn=None):
+    """
+    Creates a single independent search panel (tab content).
+    Each panel operates with its own state.
+    """
     with gr.TabItem(f"Search {i+1}", visible=(i==0), elem_id=f"civlens-panel-{i}") as tab_item:
         # Hidden close button that will be triggered by JS
         close_btn = gr.Button("✖ Close Tab", visible=False, elem_id=f"civlens-close-btn-{i}")
 
         with gr.Tabs():
+            # Tab 1: Search Interface
             with gr.Tab("Search Models"):
                 with gr.Group():
                     with gr.Row():
@@ -1316,6 +1350,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                                 scale=3,
                             )
 
+            # Tab 2: Direct URL Load
             with gr.Tab("Load by URL"):
                 with gr.Group():
                     with gr.Row():
@@ -1337,6 +1372,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                         placeholder="URL status",
                     )
 
+        # Main Split View: Gallery (Left) + Details (Right)
         with gr.Row(equal_height=False):
             with gr.Column(scale=2, min_width=300):
                 gr.Markdown("Results")
@@ -1390,7 +1426,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                 )
                 dl_poll_timer = gr.Timer(1.0, active=False)
 
-        # State
+        # State initialization
         panel_id_state = gr.State(i)
         search_data = gr.State(
             {
@@ -1410,8 +1446,12 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             }
         )
 
-        # Events
+        # ---------------------------------------------------------------------
+        # Event Handlers
+        # ---------------------------------------------------------------------
+
         def on_gallery_select(evt: gr.SelectData, sd):
+            """Handle clicks on gallery items."""
             items = sd.get("items", [])
             if not items or evt.index is None or evt.index >= len(items):
                 return (
@@ -1442,6 +1482,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
 
             sd2 = dict(sd)
             sd2["selected_index"] = int(evt.index)
+            # Preserve selected version choice
             if vid is not None:
                 items2 = list(items)
                 m2 = dict(model)
@@ -1466,6 +1507,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         )
 
         def on_version_change(vc, sd):
+            """Handle version dropdown changes."""
             items = sd.get("items", [])
             idx = sd.get("selected_index", 0)
             if not items or idx >= len(items):
@@ -1476,6 +1518,8 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             mid = model.get("id", "")
             vid = (v or {}).get("id")
             sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            
+            # Update the selected version ID in model data
             m2 = dict(model)
             m2["_civitai_selected_version_id"] = vid
             items2 = list(items)
@@ -1500,6 +1544,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         )
 
         def load_from_url(url, api_key, levels):
+            """Handler for 'Load by URL' functionality."""
             empty_sd = {
                 "items": [],
                 "metadata": {},
@@ -1593,6 +1638,10 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         )
 
         def do_smart_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
+            """
+            Main search handler.
+            Decides whether to hit the API or filter locally cached results based on changed params.
+            """
             last_params = sd.get("last_api_params", {})
             
             def is_nsfw(lvl_list):
@@ -1601,6 +1650,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             current_nsfw = is_nsfw(levels)
             last_nsfw = last_params.get("nsfw") if last_params else None
 
+            # Determine if we need to fetch new data
             need_api = False
             if not last_params:
                 need_api = True
@@ -1617,10 +1667,12 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                 need_api = True
 
             if need_api:
+                # Fetch fresh results from API
                 items, meta, next_page, first_page = search_first_page(q, mt, srt, levels, api_key, creator, per)
                 items = [m for m in items if _model_matches_content_levels(m, levels)]
                 visible_items = [m for m in items if _has_thumbnail(m, levels)]
                 
+                # If searching by creator, try to load more pages upfront to allow better local filtering
                 creator_active = creator and creator != "— All —"
                 all_loaded = list(visible_items)
                 if creator_active and next_page:
@@ -1640,16 +1692,19 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                             all_loaded.append(m)
                         meta = meta2 or meta
                         next_page = next2
+                        # Cap at 50 pages or 5000 items to prevent hangs
                         if pages >= 50 or len(all_loaded) >= 5000:
                             break
 
                 raw_items_list = all_loaded if creator_active else visible_items
                 
+                # Apply text query filter locally if we fetched by creator
                 filtered_by_query = raw_items_list
                 if creator_active and q.strip():
                     qq = q.strip().lower()
                     filtered_by_query = [m for m in raw_items_list if _matches_query(m, qq)]
                 
+                # Apply client-side filters (tags, base model, etc.)
                 filtered_visible = _apply_extra_filters(filtered_by_query, cats, tag_text, bm)
 
                 if creator_active:
@@ -1689,6 +1744,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                     new_sd,
                 )
             else:
+                # Local filter only
                 raw_items = sd.get("raw_items", [])
                 if not raw_items:
                     raw_items = sd.get("all_items", []) or []
@@ -1732,6 +1788,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         )
 
         def do_next(sd, api_key):
+            """Loads next page of results."""
             next_url = sd.get("next_page", "")
             if not next_url:
                 levels = sd.get("content_levels", [])
@@ -1758,6 +1815,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         )
 
         def do_prev(sd, api_key):
+            """Returns to first page (CivitAI API doesn't support true prev, so we reset)."""
             first_url = sd.get("first_page", "")
             if not first_url:
                 levels = sd.get("content_levels", [])
@@ -1798,6 +1856,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         ]
 
         def clear_tab():
+            """Resets the tab state."""
             empty_sd = {
                 "items": [],
                 "metadata": {},
@@ -1845,7 +1904,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
 
 
 # =============================================================================
-# CSS
+# CSS LOADING
 # =============================================================================
 STYLE_PATH = os.path.join(EXTENSION_DIR, "style.css")
 def _load_css():
@@ -1858,9 +1917,13 @@ CSS = _load_css()
 
 
 # =============================================================================
-# MAIN UI TAB
+# MAIN EXTENSION ENTRY POINT
 # =============================================================================
 def on_ui_tabs():
+    """
+    Registers the extension tab in the WebUI.
+    Initializes the main layout and multi-tab system.
+    """
     settings = load_settings()
 
     with gr.Blocks(analytics_enabled=False, css=CSS, elem_id="civlens-ext") as civitai_tab:
@@ -1881,8 +1944,8 @@ def on_ui_tabs():
                     panel_clear_targets = []
                     creator_filters = []
                     
+                    # Pre-generate all potential tabs (hidden by default)
                     for i in range(MAX_TABS):
-                        # Pass a dummy function initially, we will bind the real logic later
                         tab_item, c_filter, clear_fn, clear_tgts, close_b = make_panel_components(i, api_key_state, None)
                         panel_tabs.append(tab_item)
                         panel_clear_fns.append(clear_fn)
@@ -1890,25 +1953,21 @@ def on_ui_tabs():
                         creator_filters.append(c_filter)
                         panel_close_btns.append(close_b)
                     
-                    # The "+" tab
+                    # The "+" tab (acts as a button)
                     with gr.TabItem("➕", elem_id="civlens-add-tab") as add_tab:
                         gr.Markdown("Adding new tab...")
 
                 # --- Tab Management Logic ---
 
                 def update_tabs_visibility(states, selected_idx):
+                    """Returns updates to show/hide tabs based on active states."""
                     updates = []
-                    # Update visibility for all search tabs
                     for i in range(MAX_TABS):
                         updates.append(gr.update(visible=states[i]))
-                    
-                    # Update the "+" tab to be selected only if it was clicked (handled by select event)
-                    # But actually we want to select the new tab or the previous tab.
-                    # So we return gr.Tabs.update(selected=selected_idx)
                     return updates + [gr.Tabs(selected=selected_idx)]
 
                 def on_add_tab_select(states):
-                    # Find first inactive tab
+                    """Handles clicking the '+' tab to activate the next available slot."""
                     new_idx = -1
                     for i in range(MAX_TABS):
                         if not states[i]:
@@ -1930,11 +1989,11 @@ def on_ui_tabs():
                 )
 
                 def on_close_tab(i, states):
+                    """Handles closing a tab and selecting the nearest neighbor."""
                     states[i] = False
-                    # Find new selected tab (previous visible one)
                     new_sel = 0
-                    # Try to find visible tab before current one
                     found_prev = False
+                    # Try to find visible tab before current one
                     for j in range(i-1, -1, -1):
                         if states[j]:
                             new_sel = j
@@ -1957,6 +2016,7 @@ def on_ui_tabs():
                         outputs=[active_tabs, selected_tab_idx] + panel_tabs + [search_tabs],
                     )
 
+            # Settings Tab
             with gr.TabItem("Settings"):
                 gr.Markdown("API Key")
                 api_key_input = gr.Textbox(

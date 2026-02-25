@@ -1,4 +1,10 @@
-/* Make URL input mono-like */
+/* =============================================================================
+   CivLens Extension Styles
+   Defines the visual appearance for the CivLens browser UI.
+   Scopes styles to #civlens-ext to prevent leaking into the main WebUI.
+   ============================================================================= */
+
+/* Ensure monospace font for URL inputs to handle long strings better */
 #civlens-ext #civlens-url-input-0 textarea,
 #civlens-ext #civlens-url-input-1 textarea,
 #civlens-ext #civlens-url-input-2 textarea,
@@ -9,7 +15,10 @@
     font-size: 12px;
 }
 
-/* Group styling */
+/* 
+ * Group Containers
+ * Adds consistent bordering and spacing for grouped controls
+ */
 #civlens-ext .gr-group {
     border: 1px solid #1f2937 !important;
     border-radius: 8px !important;
@@ -17,12 +26,15 @@
     margin-bottom: 2px !important;
 }
 
-/* Keep hidden control buttons out of sight */
+/* Utility class to hide elements that must remain in DOM for logic but not visible */
 #civlens-ext .civlens-hidden-controls {
     display: none !important;
 }
 
-/* Native Tab Styling Overrides */
+/* 
+ * Tab Navigation Bar Customization
+ * Overrides default Gradio tab styles to create a cleaner, browser-like look
+ */
 #civlens-search-tabs > .tab-nav {
     border-bottom: 1px solid #334155 !important;
     background: #0f172a !important;
@@ -30,6 +42,7 @@
     padding: 8px 12px 0 !important;
 }
 
+/* Individual Tab Buttons */
 #civlens-search-tabs > .tab-nav > button {
     background: #1e293b !important;
     border: 1px solid transparent !important;
@@ -38,7 +51,7 @@
     color: #94a3b8 !important;
     margin-bottom: 0 !important;
     font-size: 13px !important;
-    padding: 6px 30px 6px 12px !important; /* Extra padding on right for close button */
+    padding: 6px 30px 6px 12px !important; /* Right padding accommodates the close button */
     position: relative !important;
     transition: all 0.2s ease !important;
 }
@@ -48,16 +61,21 @@
     color: #e2e8f0 !important;
 }
 
+/* Active/Selected Tab State */
 #civlens-search-tabs > .tab-nav > button.selected {
     background: #0b0f19 !important;
     color: #fff !important;
     border: 1px solid #334155 !important;
-    border-bottom: 1px solid #0b0f19 !important;
+    border-bottom: 1px solid #0b0f19 !important; /* Blends with content area */
     z-index: 10 !important;
     margin-bottom: -1px !important;
     font-weight: 500 !important;
 }
 
+/* 
+ * Tab Close Button (x)
+ * Injected via JS into the tab buttons
+ */
 #civlens-search-tabs > .tab-nav > button:not(:last-child) .civlens-tab-close-btn {
     position: absolute;
     right: 8px;
@@ -72,20 +90,25 @@
     color: #94a3b8;
     cursor: pointer;
     transition: all 0.2s ease;
-    opacity: 0;
+    opacity: 0; /* Hidden by default until hover or active */
 }
 
+/* Show close button on hover or if tab is active */
 #civlens-search-tabs > .tab-nav > button:not(:last-child):hover .civlens-tab-close-btn,
 #civlens-search-tabs > .tab-nav > button.selected:not(:last-child) .civlens-tab-close-btn {
     opacity: 1;
 }
 
+/* Close button hover effect */
 #civlens-search-tabs > .tab-nav > button:not(:last-child) .civlens-tab-close-btn:hover {
     background: rgba(239, 68, 68, 0.2);
     color: #ef4444;
 }
 
-/* Specific styling for the "+" tab */
+/* 
+ * "Add Tab" Button Styling
+ * The last button in the tab list acts as the add button
+ */
 #civlens-search-tabs > .tab-nav > button:last-child {
     padding: 6px 12px !important;
     font-size: 16px !important;
@@ -99,14 +122,16 @@
     background: rgba(59, 130, 246, 0.1) !important;
 }
 
+/* Disabled state for Add button (when max tabs reached) */
 #civlens-search-tabs > .tab-nav > button:last-child.civlens-tab-add-disabled {
     color: #64748b !important;
     background: transparent !important;
     opacity: 0.5 !important;
     pointer-events: none !important;
+    cursor: not-allowed !important;
 }
 
-/* Reduce vertical spacing */
+/* Layout adjustments to reduce wasted vertical space */
 #civlens-ext .gr-group + .gr-row,
 #civlens-ext .gr-group ~ .gr-row {
     margin-top: 2px !important;
@@ -117,7 +142,11 @@
     margin: 2px 0 !important;
 }
 
-/* Buttons */
+/* 
+ * Button Components
+ */
+
+/* Primary Search/Load Button */
 #civlens-ext .btn-load .gr-button,
 #civlens-ext .btn-load button {
     background: linear-gradient(180deg, rgba(96,165,250,0.35), rgba(29,78,216,0.35));
@@ -130,6 +159,9 @@
     align-items: center;
     gap: 6px;
     margin-left: 8px;
+    width: 100%;
+    justify-content: center;
+    font-weight: 600;
 }
 
 #civlens-ext .btn-load .gr-button:hover,
@@ -143,13 +175,7 @@
     flex: 1 1 auto;
 }
 
-#civlens-ext .btn-load .gr-button,
-#civlens-ext .btn-load button {
-    width: 100%;
-    justify-content: center;
-    font-weight: 600;
-}
-
+/* Orange Action Buttons (if used) */
 #civlens-ext .btn-refine-orange .gr-button,
 #civlens-ext .btn-refine-orange button {
     background: #f97316;
@@ -169,6 +195,7 @@
     border-color: #fdba74;
 }
 
+/* Main Download Button */
 #civlens-ext .btn-download .gr-button,
 #civlens-ext .btn-download button {
     width: 100%;
@@ -178,6 +205,9 @@
     border-radius: 12px;
 }
 
+/* 
+ * Download Progress Bar
+ */
 #civlens-ext .download-progress .progress-bar {
     height: 16px;
     background: #0f172a;
@@ -192,6 +222,7 @@
     transition: width 0.2s ease;
 }
 
+/* Centering Utility */
 #civlens-ext .content-center {
     margin-left: auto !important;
     margin-right: auto !important;
