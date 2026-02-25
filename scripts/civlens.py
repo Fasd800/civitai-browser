@@ -296,6 +296,86 @@ def _apply_extra_filters(items, tag_categories, tag_filter_text, base_model_valu
     return out
 
 
+_CONTENT_LEVEL_ORDER = {"PG": 0, "PG-13": 1, "R": 2, "X": 3, "XXX": 4}
+
+
+def _normalize_content_level(value):
+    if value is None:
+        return "PG"
+    if isinstance(value, bool):
+        return "XXX" if value else "PG"
+    if isinstance(value, (int, float)):
+        idx = int(value)
+        for k, v in _CONTENT_LEVEL_ORDER.items():
+            if v == idx:
+                return k
+        if idx <= 0:
+            return "PG"
+        if idx == 1:
+            return "PG-13"
+        if idx == 2:
+            return "R"
+        if idx == 3:
+            return "X"
+        return "XXX"
+    if isinstance(value, str):
+        raw = value.strip().upper()
+        raw = raw.replace("PG13", "PG-13")
+        if raw in {"SAFE", "SFW", "NONE"}:
+            return "PG"
+        if raw in {"NSFW"}:
+            return "XXX"
+        if raw in _CONTENT_LEVEL_ORDER:
+            return raw
+        if raw in {"MATURE", "ADULT"}:
+            return "R"
+        if raw in {"EXPLICIT"}:
+            return "XXX"
+    return "PG"
+
+
+def _allowed_content_levels(levels):
+    if not levels:
+        return set(_CONTENT_LEVEL_ORDER.keys())
+    return {_normalize_content_level(lvl) for lvl in levels if (lvl or "").strip()}
+
+
+def _model_content_level(model):
+    direct = model.get("nsfwLevel", None)
+    if direct is not None:
+        return _normalize_content_level(direct)
+    direct = model.get("nsfw", None)
+    if direct is not None:
+        return _normalize_content_level(direct)
+    max_rank = 0
+    for v in model.get("modelVersions", []) or []:
+        v_lvl = v.get("nsfwLevel", None)
+        if v_lvl is not None:
+            max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(v_lvl), 0))
+            continue
+        v_lvl = v.get("nsfw", None)
+        if v_lvl is not None:
+            max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(v_lvl), 0))
+        for img in v.get("images", []) or []:
+            i_lvl = img.get("nsfwLevel", None)
+            if i_lvl is not None:
+                max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(i_lvl), 0))
+                continue
+            i_lvl = img.get("nsfw", None)
+            if i_lvl is not None:
+                max_rank = max(max_rank, _CONTENT_LEVEL_ORDER.get(_normalize_content_level(i_lvl), 0))
+    for k, v in _CONTENT_LEVEL_ORDER.items():
+        if v == max_rank:
+            return k
+    return "PG"
+
+
+def _model_matches_content_levels(model, levels):
+    allowed = _allowed_content_levels(levels)
+    level = _model_content_level(model)
+    return level in allowed
+
+
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
     include_nsfw = any((lvl or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for lvl in content_levels)
     params = {
@@ -396,7 +476,7 @@ def get_trigger_words_for_version(version):
     return version.get("trainedWords", []) if version else []
 
 
-def _pick_model_preview_image_url(model: dict):
+def _pick_model_preview_image_url(model: dict, allowed_levels=None):
     versions = model.get("modelVersions", []) or []
     sel_id = model.get("_civitai_selected_version_id", None)
     ordered = []
@@ -410,32 +490,35 @@ def _pick_model_preview_image_url(model: dict):
     else:
         ordered = list(versions)
     for v in ordered:
-        thumb = _pick_version_preview_image_url(v or {})
+        thumb = _pick_version_preview_image_url(v or {}, allowed_levels=allowed_levels)
         if thumb:
             return thumb
     return ""
 
 
-def _has_thumbnail(model):
-    return bool(_pick_model_preview_image_url(model))
+def _has_thumbnail(model, allowed_levels=None):
+    return bool(_pick_model_preview_image_url(model, allowed_levels=allowed_levels))
 
 
-def build_gallery_data(items):
+def build_gallery_data(items, allowed_levels=None):
     gallery = []
     for m in items:
-        thumb = _pick_model_preview_image_url(m or {})
+        thumb = _pick_model_preview_image_url(m or {}, allowed_levels=allowed_levels)
         if thumb:
             gallery.append((thumb, m.get("name", "?")))
     return gallery
 
 
-def _pick_version_preview_image_url(version: dict):
+def _pick_version_preview_image_url(version: dict, allowed_levels=None):
     if not version:
         return ""
+    allowed = _allowed_content_levels(allowed_levels)
     skip_types = {"video"}
     skip_ext = {".mp4", ".webm", ".gif", ".mov", ".avi"}
     for img in version.get("images", []) or []:
         if img.get("type", "image").lower() in skip_types:
+            continue
+        if _normalize_content_level(img.get("nsfwLevel", img.get("nsfw", None))) not in allowed:
             continue
         url = (img.get("url", "") or "").strip()
         if not url:
@@ -1200,8 +1283,8 @@ def make_panel_components(i, api_key_state):
                 )
                 content_levels = gr.CheckboxGroup(
                     label="Content rating",
-                    choices=["Safe", "NSFW"],
-                    value=["Safe", "NSFW"],
+                    choices=["PG", "PG-13", "R", "X", "XXX"],
+                    value=["PG", "PG-13", "R", "X", "XXX"],
                     scale=3,
                 )
 
@@ -1288,6 +1371,7 @@ def make_panel_components(i, api_key_state):
                 "tag_categories": [],
                 "tag_filter": "",
                 "base_model": "Any",
+                "content_levels": ["PG", "PG-13", "R", "X", "XXX"],
                 "selected_index": 0,
             }
         )
@@ -1364,9 +1448,10 @@ def make_panel_components(i, api_key_state):
             items2[idx] = m2
             sd2 = dict(sd)
             sd2["items"] = items2
+            levels = sd.get("content_levels", [])
 
             return (
-                build_gallery_data(items2),
+                build_gallery_data(items2, levels),
                 get_model_header_html(m2, v),
                 build_trigger_words_html(get_trigger_words_for_version(v)),
                 get_model_body_html(m2, v),
@@ -1380,7 +1465,7 @@ def make_panel_components(i, api_key_state):
             outputs=[gallery, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
-        def load_from_url(url, api_key):
+        def load_from_url(url, api_key, levels):
             empty_sd = {
                 "items": [],
                 "metadata": {},
@@ -1388,6 +1473,7 @@ def make_panel_components(i, api_key_state):
                 "next_page": "",
                 "first_page": "",
                 "query": "",
+                "content_levels": (levels or ["PG", "PG-13", "R", "X", "XXX"]),
                 "selected_index": 0,
             }
 
@@ -1445,11 +1531,12 @@ def make_panel_components(i, api_key_state):
                 "next_page": "",
                 "first_page": "",
                 "query": "",
+                "content_levels": (levels or ["PG", "PG-13", "R", "X", "XXX"]),
                 "selected_index": 0,
             }
 
             return (
-                build_gallery_data([m2]),
+                build_gallery_data([m2], levels),
                 gr.update(value=f"Loaded: {model.get('name','?')}", visible=True),
                 gr.update(value="", visible=False),
                 gr.update(choices=ver_choices, value=ver_val, visible=True, interactive=len(ver_choices) > 1),
@@ -1462,18 +1549,19 @@ def make_panel_components(i, api_key_state):
 
         url_btn.click(
             fn=load_from_url,
-            inputs=[url_input, api_key_state],
+            inputs=[url_input, api_key_state, content_levels],
             outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
         url_input.submit(
             fn=load_from_url,
-            inputs=[url_input, api_key_state],
+            inputs=[url_input, api_key_state, content_levels],
             outputs=[gallery, url_status, page_info, version_selector, model_header_html, trigger_html, model_body_html, selected_url, search_data],
         )
 
         def do_search(q, mt, srt, levels, api_key, creator, per, cats, tag_text, bm, sd):
             items, meta, next_page, first_page = search_first_page(q, mt, srt, levels, api_key, creator, per)
-            visible_items = [m for m in items if _has_thumbnail(m)]
+            items = [m for m in items if _model_matches_content_levels(m, levels)]
+            visible_items = [m for m in items if _has_thumbnail(m, levels)]
             creator_active = creator and creator != "— All —"
             all_loaded = list(visible_items)
             if creator_active and next_page:
@@ -1483,7 +1571,8 @@ def make_panel_components(i, api_key_state):
                 while next_page:
                     pages += 1
                     items2, meta2, next2 = _fetch_url(next_page, headers)
-                    visible2 = [m for m in items2 if _has_thumbnail(m)]
+                    items2 = [m for m in items2 if _model_matches_content_levels(m, levels)]
+                    visible2 = [m for m in items2 if _has_thumbnail(m, levels)]
                     for m in visible2:
                         mid = m.get("id")
                         if mid is None or mid in seen:
@@ -1515,11 +1604,12 @@ def make_panel_components(i, api_key_state):
                 "tag_categories": (cats or []),
                 "tag_filter": (tag_text or ""),
                 "base_model": (bm or "Any"),
+                "content_levels": (levels or ["PG", "PG-13", "R", "X", "XXX"]),
                 "selected_index": 0,
             }
 
             return (
-                build_gallery_data(filtered_all if creator_active else filtered_visible),
+                build_gallery_data(filtered_all if creator_active else filtered_visible, levels),
                 gr.update(value=page_lbl, visible=True),
                 gr.update(value="", visible=False),
                 "",
@@ -1544,11 +1634,14 @@ def make_panel_components(i, api_key_state):
         def do_next(sd, api_key):
             next_url = sd.get("next_page", "")
             if not next_url:
-                return build_gallery_data(sd.get("items", [])), gr.update(value="No more pages.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
+                levels = sd.get("content_levels", [])
+                return build_gallery_data(sd.get("items", []), levels), gr.update(value="No more pages.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(next_url, headers)
-            visible_items = [m for m in items if _has_thumbnail(m)]
+            levels = sd.get("content_levels", [])
+            items = [m for m in items if _model_matches_content_levels(m, levels)]
+            visible_items = [m for m in items if _has_thumbnail(m, levels)]
             visible_items = _apply_extra_filters(visible_items, sd.get("tag_categories"), sd.get("tag_filter"), sd.get("base_model"))
             all_items = (sd.get("all_items") or []) + visible_items
             total = meta.get("totalItems", 0)
@@ -1556,7 +1649,7 @@ def make_panel_components(i, api_key_state):
 
             new_sd = dict(sd)
             new_sd.update({"items": visible_items, "metadata": meta, "all_items": all_items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(visible_items), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
+            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
 
         next_btn.click(
             fn=do_next,
@@ -1567,18 +1660,21 @@ def make_panel_components(i, api_key_state):
         def do_prev(sd, api_key):
             first_url = sd.get("first_page", "")
             if not first_url:
-                return build_gallery_data(sd.get("items", [])), gr.update(value="Already on first page.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
+                levels = sd.get("content_levels", [])
+                return build_gallery_data(sd.get("items", []), levels), gr.update(value="Already on first page.", visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", sd
 
             headers = _get_headers(api_key)
             items, meta, next2 = _fetch_url(first_url, headers)
-            visible_items = [m for m in items if _has_thumbnail(m)]
+            levels = sd.get("content_levels", [])
+            items = [m for m in items if _model_matches_content_levels(m, levels)]
+            visible_items = [m for m in items if _has_thumbnail(m, levels)]
             visible_items = _apply_extra_filters(visible_items, sd.get("tag_categories"), sd.get("tag_filter"), sd.get("base_model"))
             total = meta.get("totalItems", len(visible_items))
             page_lbl = f"Page 1: {len(visible_items)} of {total} results" if visible_items else "No results."
 
             new_sd = dict(sd)
             new_sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next2, "selected_index": 0})
-            return build_gallery_data(visible_items), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
+            return build_gallery_data(visible_items, levels), gr.update(value=page_lbl, visible=True), "", gr.update(visible=False, interactive=False, choices=[], value=None), build_trigger_words_html([]), EMPTY_DETAIL, "", new_sd
 
         prev_btn.click(
             fn=do_prev,
@@ -1588,18 +1684,20 @@ def make_panel_components(i, api_key_state):
 
         def do_refine(q, sd, api_key):
             all_items = sd.get("all_items", []) or []
+            levels = sd.get("content_levels", [])
             if not all_items:
-                items, meta, next_page, first_page = search_first_page(q, "All", "Most Downloaded", ["Safe"], api_key, "— All —", "AllTime")
-                visible_items = [m for m in items if _has_thumbnail(m)]
+                items, meta, next_page, first_page = search_first_page(q, "All", "Most Downloaded", levels or ["PG", "PG-13", "R", "X", "XXX"], api_key, "— All —", "AllTime")
+                items = [m for m in items if _model_matches_content_levels(m, levels)]
+                visible_items = [m for m in items if _has_thumbnail(m, levels)]
                 all_items = visible_items
                 sd = dict(sd)
                 sd.update({"items": visible_items, "metadata": meta, "all_items": visible_items, "next_page": next_page, "first_page": first_page, "selected_index": 0})
 
             if not q.strip():
-                matched = all_items
+                matched = [m for m in all_items if _model_matches_content_levels(m, levels)]
             else:
                 qq = q.strip().lower()
-                matched = [m for m in all_items if _matches_query(m, qq)]
+                matched = [m for m in all_items if _matches_query(m, qq) and _model_matches_content_levels(m, levels)]
             matched = _apply_extra_filters(matched, sd.get("tag_categories"), sd.get("tag_filter"), sd.get("base_model"))
 
             sd2 = dict(sd)
@@ -1609,7 +1707,7 @@ def make_panel_components(i, api_key_state):
             page_lbl = f"{len(matched)} matches from {len(all_items)} cached"
 
             return (
-                build_gallery_data(matched),
+                build_gallery_data(matched, levels),
                 gr.update(value=page_lbl, visible=True),
                 gr.update(value="", visible=False),
                 "",
@@ -1648,6 +1746,7 @@ def make_panel_components(i, api_key_state):
                 "next_page": "",
                 "first_page": "",
                 "query": "",
+                "content_levels": ["PG", "PG-13", "R", "X", "XXX"],
                 "selected_index": 0,
             }
             return (
