@@ -2021,12 +2021,14 @@ def on_ui_tabs():
                                 if (nav) {
                                     var buttons = nav.querySelectorAll('button');
                                     buttons.forEach(function(btn) {
-                                        // If it's a search tab, add the class.
-                                        // We identify search tabs by text "Search" or by exclusion of "+"
-                                        if (btn.innerText.includes("Search")) {
-                                            btn.classList.add('civlens-has-close');
+                                        // We now default to showing the X via CSS on ALL buttons.
+                                        // We only add 'civlens-no-close' to the + tab.
+                                        if (btn.innerText.includes("➕")) {
+                                            btn.classList.add('civlens-no-close');
+                                            btn.classList.remove('civlens-has-close'); // Cleanup
                                         } else {
-                                            btn.classList.remove('civlens-has-close');
+                                            btn.classList.remove('civlens-no-close');
+                                            btn.classList.add('civlens-has-close'); // Keep just in case
                                         }
                                     });
                                 }
