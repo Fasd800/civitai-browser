@@ -371,9 +371,22 @@ def _model_content_level(model):
 
 
 def _model_matches_content_levels(model, levels):
+    return _model_has_allowed_content(model, levels)
+
+
+def _model_has_allowed_content(model, levels):
     allowed = _allowed_content_levels(levels)
-    level = _model_content_level(model)
-    return level in allowed
+    versions = model.get("modelVersions", []) or []
+    for v in versions:
+        for img in v.get("images", []) or []:
+            if _normalize_content_level(img.get("nsfwLevel", img.get("nsfw", None))) in allowed:
+                return True
+    if not versions:
+        return _model_content_level(model) in allowed
+    for v in versions:
+        if _normalize_content_level(v.get("nsfwLevel", v.get("nsfw", None))) in allowed:
+            return True
+    return _model_content_level(model) in allowed
 
 
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
