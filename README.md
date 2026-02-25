@@ -26,14 +26,15 @@ An extension that lets you browse, filter, preview, and download CivitAI models 
 - **Load a specific model URL**:
   - Paste a CivitAI model or version URL and click “Load from URL”.
   - The details pane shows specifications; choose a version if available and click “Download model”.
-- **Browse, then refine**:
+- **Search and Filter**:
   - Set filters (Type, Sort, Period, Base model, Tags, Tag categories, Content rating, Creator).
-  - Click “Load models” (at the bottom of the Filters section) to fetch results.
-  - Browse the gallery; use the Version dropdown for different versions.
-  - Enter a keyword and click “Refine results” to filter the loaded results locally.
+  - Enter a keyword in the "Search Query" box if desired.
+  - Click “Search” (or press Enter) to fetch results.
+  - The Smart Search automatically decides whether to fetch new data from CivitAI or filter the existing results locally (e.g., when changing only local filters like Base Model or Tags).
 - **Recommendation**:
-  - This extension is designed primarily for creator-based browsing. For best results (and the intended workflow), set the Creator filter first, click “Load models”, then use the keyword filter to refine locally.
-  - Without a Creator selected, “Load models” loads a single page; use “Next” to load more pages.
+  - This extension is designed primarily for creator-based browsing. For best results (and the intended workflow), set the Creator filter first and click “Search”.
+  - If you enter a keyword with a Creator selected, the extension will fetch all models from that creator and then automatically filter them by your keyword.
+  - Without a Creator selected, “Search” loads a single page; use “Next” to load more pages.
 
 ## Compatibility
 - **Tested environment**:
