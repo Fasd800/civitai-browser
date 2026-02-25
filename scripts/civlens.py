@@ -1980,6 +1980,7 @@ def on_ui_tabs():
                             var container = document.getElementById('civlens-search-tabs');
                             if (!container) return;
                             
+                            // Gradio's structure might vary slightly, usually .tab-nav or similar class
                             var nav = container.querySelector('.tab-nav');
                             if (!nav) return;
                             
@@ -1998,6 +1999,7 @@ def on_ui_tabs():
                             if (x > rect.width - 30) {
                                 e.stopPropagation();
                                 e.preventDefault();
+                                e.stopImmediatePropagation(); // Important to stop Gradio from switching tabs
                                 
                                 // Extract the index from the text "Search N"
                                 // We use textContent to get "Search 1", "Search 2", etc.
@@ -2010,10 +2012,12 @@ def on_ui_tabs():
                                     var closeBtn = document.getElementById(closeBtnId);
                                     if (closeBtn) {
                                         closeBtn.click();
+                                    } else {
+                                        console.error("CivLens: Close button not found for id " + closeBtnId);
                                     }
                                 }
                             }
-                        }, true); // Use capture to intercept before Gradio switches tabs?
+                        }, true); // Use capture to intercept before Gradio switches tabs
                     </script>
                 """)
 
