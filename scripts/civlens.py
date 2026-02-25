@@ -372,6 +372,22 @@ def _model_content_level(model):
 
 def _model_matches_content_levels(model, levels):
     allowed = _allowed_content_levels(levels)
+    versions = model.get("modelVersions", []) or []
+    has_images = False
+    has_known_level = False
+    for v in versions:
+        for img in v.get("images", []) or []:
+            has_images = True
+            raw = img.get("nsfwLevel", img.get("nsfw", None))
+            if raw is not None:
+                has_known_level = True
+                if _normalize_content_level(raw) in allowed:
+                    return True
+            else:
+                if "PG" in allowed:
+                    return True
+    if has_images and has_known_level:
+        return False
     level = _model_content_level(model)
     return level in allowed
 
