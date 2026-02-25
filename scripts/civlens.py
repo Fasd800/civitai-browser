@@ -372,8 +372,42 @@ def _model_content_level(model):
 
 def _model_matches_content_levels(model, levels):
     allowed = _allowed_content_levels(levels)
-    level = _model_content_level(model)
-    return level in allowed
+    has_any_flag = False
+    for v in model.get("modelVersions", []) or []:
+        v_lvl = v.get("nsfwLevel", None)
+        if v_lvl is not None:
+            has_any_flag = True
+            if _normalize_content_level(v_lvl) in allowed:
+                return True
+        v_lvl = v.get("nsfw", None)
+        if v_lvl is not None:
+            has_any_flag = True
+            if _normalize_content_level(v_lvl) in allowed:
+                return True
+        for img in v.get("images", []) or []:
+            i_lvl = img.get("nsfwLevel", None)
+            if i_lvl is not None:
+                has_any_flag = True
+                if _normalize_content_level(i_lvl) in allowed:
+                    return True
+            i_lvl = img.get("nsfw", None)
+            if i_lvl is not None:
+                has_any_flag = True
+                if _normalize_content_level(i_lvl) in allowed:
+                    return True
+    m_lvl = model.get("nsfwLevel", None)
+    if m_lvl is not None:
+        has_any_flag = True
+        if _normalize_content_level(m_lvl) in allowed:
+            return True
+    m_lvl = model.get("nsfw", None)
+    if m_lvl is not None:
+        has_any_flag = True
+        if _normalize_content_level(m_lvl) in allowed:
+            return True
+    if not has_any_flag:
+        return "PG" in allowed
+    return False
 
 
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
