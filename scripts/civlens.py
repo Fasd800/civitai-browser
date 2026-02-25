@@ -1255,10 +1255,17 @@ def make_panel_components(i, api_key_state):
                     elem_id=f"civlens-query-{i}",
                     scale=5,
                 )
-                search_btn = gr.Button("� Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
+                search_btn = gr.Button("🔎 Search", variant="primary", scale=1, min_width=120, elem_classes=["btn-load"])
 
             # Basic Filters
             with gr.Row():
+                creator_filter = gr.Dropdown(
+                    label="Creator",
+                    choices=creator_dropdown_choices(),
+                    value="— All —",
+                    scale=1,
+                    info="Filter by favorite creator."
+                )
                 model_type = gr.Dropdown(
                     label="Type",
                     choices=["All", "Checkpoint", "LORA", "TextualInversion", "Controlnet", "Hypernetwork", "VAE", "Poses", "Wildcards", "Other"],
@@ -1287,13 +1294,6 @@ def make_panel_components(i, api_key_state):
             # Advanced Filters (Collapsed by default)
             with gr.Accordion("⚙️ Advanced Filters", open=False):
                 with gr.Row():
-                    creator_filter = gr.Dropdown(
-                        label="Creator",
-                        choices=creator_dropdown_choices(),
-                        value="— All —",
-                        scale=2,
-                        info="Select a favorite creator to filter by."
-                    )
                     tag_filter = gr.Textbox(
                         label="Tags",
                         placeholder="Comma separated tags (e.g. character, clothing)",
