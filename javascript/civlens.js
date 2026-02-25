@@ -44,6 +44,66 @@
         return root.querySelectorAll(".civlens-tabstrip .civlens-tab").length || 1;
     }
 
+    function getTabNav() {
+        const root = getRoot();
+        return root.querySelector("#civlens-search-tabs .tab-nav");
+    }
+
+    function getTabButtons() {
+        const nav = getTabNav();
+        if (!nav) return [];
+        return Array.from(nav.querySelectorAll("button"));
+    }
+
+    function isVisible(el) {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        return style && style.display !== "none" && style.visibility !== "hidden";
+    }
+
+    function getVisibleSearchButtons() {
+        const buttons = getTabButtons();
+        if (!buttons.length) return [];
+        return buttons.slice(0, -1).filter(isVisible);
+    }
+
+    function updateAddTabDisabled() {
+        const buttons = getTabButtons();
+        if (!buttons.length) return;
+        const addBtn = buttons[buttons.length - 1];
+        const visibleCount = getVisibleSearchButtons().length;
+        if (visibleCount >= MAX_TABS) {
+            addBtn.classList.add("civlens-tab-add-disabled");
+            addBtn.setAttribute("aria-disabled", "true");
+        } else {
+            addBtn.classList.remove("civlens-tab-add-disabled");
+            addBtn.removeAttribute("aria-disabled");
+        }
+    }
+
+    function attachTabCloseButtons() {
+        const buttons = getTabButtons();
+        if (!buttons.length) return;
+        const searchButtons = buttons.slice(0, -1);
+        for (const btn of searchButtons) {
+            if (!isVisible(btn)) continue;
+            if (btn.querySelector(".civlens-tab-close-btn")) continue;
+            const close = document.createElement("span");
+            close.className = "civlens-tab-close-btn";
+            close.textContent = "×";
+            close.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = btn.textContent || "";
+                const match = text.match(/Search\s+(\d+)/);
+                if (!match) return;
+                const idx = parseInt(match[1], 10) - 1;
+                clickById(`civlens-close-btn-${idx}`);
+            });
+            btn.appendChild(close);
+        }
+    }
+
     function openUrlInTab(tabIndex, url) {
         const activeIdx = getActiveTabIndex();
         if (activeIdx !== tabIndex) {
@@ -90,8 +150,12 @@
         if (!root) return;
         const observer = new MutationObserver(() => {
             attachSendToTabButtons();
+            attachTabCloseButtons();
+            updateAddTabDisabled();
         });
         attachSendToTabButtons();
-        observer.observe(root, { childList: true, subtree: true });
+        attachTabCloseButtons();
+        updateAddTabDisabled();
+        observer.observe(root, { childList: true, subtree: true, attributes: true });
     });
 })();

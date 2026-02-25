@@ -1899,17 +1899,12 @@ def on_ui_tabs():
                 def update_tabs_visibility(states, selected_idx):
                     updates = []
                     # Update visibility for all search tabs
-                    active_count = 0
                     for i in range(MAX_TABS):
-                        is_visible = states[i]
-                        updates.append(gr.update(visible=is_visible))
-                        if is_visible:
-                            active_count += 1
+                        updates.append(gr.update(visible=states[i]))
                     
-                    # Update the "+" tab to be disabled/hidden if max tabs reached
-                    plus_visible = active_count < MAX_TABS
-                    updates.append(gr.update(visible=plus_visible))
-                    
+                    # Update the "+" tab to be selected only if it was clicked (handled by select event)
+                    # But actually we want to select the new tab or the previous tab.
+                    # So we return gr.Tabs.update(selected=selected_idx)
                     return updates + [gr.Tabs(selected=selected_idx)]
 
                 def on_add_tab_select(states):
@@ -1922,21 +1917,15 @@ def on_ui_tabs():
                     
                     if new_idx != -1:
                         states[new_idx] = True
-                        vis_updates = update_tabs_visibility(states, new_idx)
-                        return states, new_idx, *vis_updates
+                        return states, new_idx, *update_tabs_visibility(states, new_idx)
                     else:
-                        # Full
-                        last_active = 0
-                        for i in range(MAX_TABS):
-                            if states[i]:
-                                last_active = i
-                        vis_updates = update_tabs_visibility(states, last_active)
-                        return states, last_active, *vis_updates
+                        # Full, keep selected on last tab
+                        return states, MAX_TABS-1, *update_tabs_visibility(states, MAX_TABS-1)
 
                 add_tab.select(
                     fn=on_add_tab_select,
                     inputs=[active_tabs],
-                    outputs=[active_tabs, selected_tab_idx] + panel_tabs + [add_tab, search_tabs],
+                    outputs=[active_tabs, selected_tab_idx] + panel_tabs + [search_tabs],
                     show_progress=False
                 )
 
@@ -1959,98 +1948,14 @@ def on_ui_tabs():
                                 new_sel = j
                                 break
                     
-                    vis_updates = update_tabs_visibility(states, new_sel)
-                    return states, new_sel, *vis_updates
+                    return states, new_sel, *update_tabs_visibility(states, new_sel)
 
                 for i in range(MAX_TABS):
                     panel_close_btns[i].click(
                         fn=lambda states, idx=i: on_close_tab(idx, states),
                         inputs=[active_tabs],
-                        outputs=[active_tabs, selected_tab_idx] + panel_tabs + [add_tab, search_tabs],
+                        outputs=[active_tabs, selected_tab_idx] + panel_tabs + [search_tabs],
                     )
-
-                # JS to handle tab close clicks - checks for clicks on the pseudo-element area
-                # We need a more robust way to attach this, as Gradio might wipe event listeners on re-render.
-                # We'll use a polling approach to attach the listener to the container once it exists.
-                gr.HTML("""
-                    <script>
-                        (function() {
-                            function setupTabClose() {
-                                var container = document.getElementById('civlens-search-tabs');
-                                if (!container) return;
-                                
-                                // Prevent multiple attachments
-                                if (!container.dataset.closeListenerAttached) {
-                                    container.dataset.closeListenerAttached = "true";
-                                    container.addEventListener('click', function(e) {
-                                        var target = e.target;
-                                        var btn = target.closest('button');
-                                        if (!btn) return;
-                                        
-                                        var nav = container.querySelector('.tab-nav');
-                                        if (!nav || !nav.contains(btn)) return;
-                                        
-                                        if (btn.innerText.includes("➕")) return;
-                                        
-                                        var rect = btn.getBoundingClientRect();
-                                        var x = e.clientX - rect.left;
-                                        
-                                        if (x > rect.width - 30) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            e.stopImmediatePropagation();
-                                            
-                                            var text = btn.innerText;
-                                            var match = text.match(/Search\s+(\d+)/);
-                                            if (match) {
-                                                var idx = parseInt(match[1]) - 1;
-                                                var closeBtnId = 'civlens-close-btn-' + idx;
-                                                var closeBtn = document.getElementById(closeBtnId);
-                                                if (closeBtn) {
-                                                    closeBtn.click();
-                                                } else {
-                                                    console.error("CivLens: Close button not found for id " + closeBtnId);
-                                                }
-                                            }
-                                        }
-                                    }, true);
-                                }
-
-                                // Apply marker class for CSS styling
-                                var nav = container.querySelector('.tab-nav');
-                                if (nav) {
-                                    var buttons = nav.querySelectorAll('button');
-                                    buttons.forEach(function(btn) {
-                                        // We now default to showing the X via CSS on ALL buttons.
-                                        // We only add 'civlens-no-close' to the + tab.
-                                        if (btn.innerText.includes("➕")) {
-                                            btn.classList.add('civlens-no-close');
-                                            btn.classList.remove('civlens-has-close'); // Cleanup
-                                        } else {
-                                            btn.classList.remove('civlens-no-close');
-                                            btn.classList.add('civlens-has-close'); // Keep just in case
-                                        }
-                                    });
-                                }
-                            }
-                            
-                            // Try to setup immediately and then poll for a bit
-                            setupTabClose();
-                            var retries = 0;
-                            var interval = setInterval(function() {
-                                setupTabClose();
-                                retries++;
-                                if (retries > 20) clearInterval(interval);
-                            }, 500);
-                            
-                            // Also re-attach on DOM changes (e.g. when tabs change)
-                            var observer = new MutationObserver(function(mutations) {
-                                setupTabClose();
-                            });
-                            observer.observe(document.body, { childList: true, subtree: true });
-                        })();
-                    </script>
-                """)
 
             with gr.TabItem("Settings"):
                 gr.Markdown("API Key")

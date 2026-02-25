@@ -58,10 +58,7 @@
     font-weight: 500 !important;
 }
 
-/* Close button via pseudo-element - relies on JS class */
-/* Show by default on ALL buttons in this specific tab container */
-#civlens-search-tabs > .tab-nav > button::after {
-    content: "×";
+#civlens-search-tabs > .tab-nav > button:not(:last-child) .civlens-tab-close-btn {
     position: absolute;
     right: 8px;
     top: 50%;
@@ -78,31 +75,12 @@
     opacity: 0;
 }
 
-/* Hide it ONLY if it has the 'no-close' class (added by JS to the '+' tab) */
-#civlens-search-tabs > .tab-nav > button.civlens-no-close::after {
-    display: none !important;
-    content: none !important;
-}
-
-#civlens-search-tabs > .tab-nav > button:hover::after,
-#civlens-search-tabs > .tab-nav > button.selected::after {
+#civlens-search-tabs > .tab-nav > button:not(:last-child):hover .civlens-tab-close-btn,
+#civlens-search-tabs > .tab-nav > button.selected:not(:last-child) .civlens-tab-close-btn {
     opacity: 1;
 }
 
-/* Ensure no close button shows on the + tab if JS fails but CSS can catch it via :last-child heuristic */
-/* This is a fallback: if the + tab is visible, it is likely the last child. */
-#civlens-search-tabs > .tab-nav > button:last-child:not(:first-child)::after {
-    /* Only apply if we are reasonably sure it is the + tab. 
-       If 5th tab is open and + is hidden, 5th tab is last-child.
-       So we CANNOT simply hide on last-child.
-       We MUST rely on JS class .civlens-no-close for correctness.
-       But since user reported 5th tab missing X, let's prioritize showing X over hiding it on +.
-       So we REMOVE this heuristic and rely purely on JS to hide it on +.
-       Better to have an X on + (that does nothing) than no X on 5th tab.
-    */
-}
-
-#civlens-search-tabs > .tab-nav > button::after:hover {
+#civlens-search-tabs > .tab-nav > button:not(:last-child) .civlens-tab-close-btn:hover {
     background: rgba(239, 68, 68, 0.2);
     color: #ef4444;
 }
@@ -119,6 +97,13 @@
 #civlens-search-tabs > .tab-nav > button:last-child:hover {
     color: #3b82f6 !important;
     background: rgba(59, 130, 246, 0.1) !important;
+}
+
+#civlens-search-tabs > .tab-nav > button:last-child.civlens-tab-add-disabled {
+    color: #64748b !important;
+    background: transparent !important;
+    opacity: 0.5 !important;
+    pointer-events: none !important;
 }
 
 /* Reduce vertical spacing */
