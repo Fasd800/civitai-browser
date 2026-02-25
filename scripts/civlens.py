@@ -411,7 +411,8 @@ def _model_matches_content_levels(model, levels):
 
 
 def build_search_url(query, model_type, sort, content_levels, api_key, creator_filter, period="AllTime", use_tag=False):
-    include_nsfw = any((lvl or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for lvl in content_levels)
+    creator_active = creator_filter and creator_filter != "— All —"
+    include_nsfw = creator_active or any((lvl or "").strip().upper() in ["NSFW", "PG-13", "R", "X", "XXX"] for lvl in content_levels)
     params = {
         "limit": 20,
         "sort": sort,
@@ -422,7 +423,7 @@ def build_search_url(query, model_type, sort, content_levels, api_key, creator_f
     if model_type != "All":
         params["types"] = model_type
 
-    if creator_filter and creator_filter != "— All —":
+    if creator_active:
         params["username"] = creator_filter
         params["limit"] = 100
     elif query.strip():
