@@ -1637,7 +1637,13 @@ def make_panel_components(i, api_key_state):
                             break
 
                 raw_items_list = all_loaded if creator_active else visible_items
-                filtered_visible = _apply_extra_filters(raw_items_list, cats, tag_text, bm)
+                
+                filtered_by_query = raw_items_list
+                if creator_active and q.strip():
+                    qq = q.strip().lower()
+                    filtered_by_query = [m for m in raw_items_list if _matches_query(m, qq)]
+                
+                filtered_visible = _apply_extra_filters(filtered_by_query, cats, tag_text, bm)
 
                 if creator_active:
                     total = meta.get("totalItems", len(raw_items_list))
@@ -1680,7 +1686,12 @@ def make_panel_components(i, api_key_state):
                 if not raw_items:
                     raw_items = sd.get("all_items", []) or []
                 
-                filtered = _apply_extra_filters(raw_items, cats, tag_text, bm)
+                filtered_by_query = raw_items
+                if creator_active and q.strip():
+                    qq = q.strip().lower()
+                    filtered_by_query = [m for m in raw_items if _matches_query(m, qq)]
+
+                filtered = _apply_extra_filters(filtered_by_query, cats, tag_text, bm)
                 page_lbl = f"{len(filtered)} matches from {len(raw_items)} cached"
                 
                 new_sd = dict(sd)
