@@ -26,7 +26,7 @@ To avoid re-entering your data:
 - Gallery thumbnails and details (version, base model, tags, description)
 - Trigger words display with click-to-copy
 - Download models into the correct folders by type (Checkpoints, LoRA, ControlNet, etc.)
-- LoRA: also saves the first PNG/JPEG preview image alongside the model
+- LoRA: also saves the first PNG/JPEG preview image alongside the model (and will fetch a missing preview if the model already exists)
 - **Security & Anti-DDoS Protection**:
   - **Smart Rate Limiting**: Global lock across tabs with randomized jitter (0.1-0.6s) to prevent request spikes.
   - **Intelligent Retry Logic**: Automatically handles rate limits (429) and server errors with exponential backoff.
@@ -52,6 +52,9 @@ To avoid re-entering your data:
   - This extension is designed primarily for creator-based browsing. For best results (and the intended workflow), set the Creator filter first and click “Search”.
   - If you enter a keyword with a Creator selected, the extension will fetch all models from that creator and then automatically filter them by your keyword.
   - Without a Creator selected, “Search” loads a single page; use “Next” to load more pages.
+- **If a download fails with 401 Unauthorized**:
+  - Insert or update your CivitAI API Key in the Settings tab.
+  - Some creators require authentication to download certain models.
 
 ## Limitations
 - **Large Creator Catalogs**: When filtering by a creator who has published a large number of models (e.g., thousands), the initial load and search may take longer. This is because the extension fetches the creator's full catalog (up to a maximum of 5,000 models for safety reasons) to perform accurate local filtering and search.
