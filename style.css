@@ -6,6 +6,19 @@
 #civlens-ext .thumbnails {
     display: none !important;
 }
+#civlens-ext div.thumbnails {
+    display: none !important;
+}
+#civlens-ext .grid-wrap + .thumbnails {
+    display: none !important;
+}
+#civlens-ext button.thumbnail-item {
+    display: none !important;
+}
+/* Hide the scroll container that holds the thumbnails */
+#civlens-ext .thumbnails.scroll-hide {
+    display: none !important;
+}
 
 /* =============================================================================
    CivLens Extension Styles
