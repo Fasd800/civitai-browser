@@ -79,9 +79,6 @@ _TAG_CACHE = {}  # Cache for tag resolution (query -> resolved name)
 
 # Configure a robust HTTP session with retries
 _SESSION = requests.Session()
-_SESSION.headers.update({
-    "User-Agent": "CivLens/1.0 (https://github.com/CivLens/CivLens; contact: discord) CivitAI-Browser-Extension"
-})
 _RETRY = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(["GET"]))
 _SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
 _SESSION.mount("http://", HTTPAdapter(max_retries=_RETRY))
