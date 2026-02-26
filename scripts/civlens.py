@@ -211,7 +211,7 @@ def load_settings():
                 return json.load(f)
         except Exception:
             pass
-    return {"api_key": "", "favorite_creators": [], "btc_address": ""}
+    return {"api_key": "", "favorite_creators": []}
 
 
 def save_settings(settings: dict):
@@ -974,46 +974,6 @@ def civitai_banner_html():
         "</div>"
     )
 
-def btc_banner_html():
-    s = load_settings()
-    addr = (s.get("btc_address", "") or "").strip()
-    copy_js = ""
-    if addr:
-        copy_js = (
-            "onclick=\"(function(txt){"
-            "if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt);}else{"
-            "var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.left='-1000px';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}"
-            "})(this.getAttribute('data-addr'))\""
-        )
-        return (
-            "<div style='padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#121212 0%,#1f2937 100%);"
-            "border:1px solid #f59e0b;border-radius:10px;display:flex;align-items:center;gap:10px;"
-            "box-shadow:0 2px 8px rgba(245,158,11,0.18)'>"
-            "<div style='font-size:22px;flex-shrink:0'>💛</div>"
-            "<div style='flex:1;min-width:0'>"
-            "<div style='color:#fff;font-size:12px;font-weight:700;margin-bottom:2px'>Support development</div>"
-            f"<div style='color:#fde68a;font-size:11px;line-height:1.6;word-break:break-all'>BTC: <span style='font-family:monospace;color:#fff'>{addr}</span></div>"
-            "</div>"
-            f"<button type='button' data-addr='{addr}' {copy_js} "
-            "style='flex-shrink:0;display:inline-block;padding:6px 14px;background:#f59e0b;color:#111;"
-            "font-size:12px;font-weight:700;border-radius:8px;border:1px solid #d97706;cursor:pointer'"
-            " onmouseover=\"this.style.background='#d97706'\" onmouseout=\"this.style.background='#f59e0b'\">Copy</button>"
-            "</div>"
-        )
-    else:
-        return (
-            "<div style='padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#121212 0%,#1f2937 100%);"
-            "border:1px solid #f59e0b;border-radius:10px;display:flex;align-items:center;gap:10px;"
-            "box-shadow:0 2px 8px rgba(245,158,11,0.18)'>"
-            "<div style='font-size:22px;flex-shrink:0'>💛</div>"
-            "<div style='flex:1;min-width:0'>"
-            "<div style='color:#fff;font-size:12px;font-weight:700;margin-bottom:2px'>Support development</div>"
-            "<div style='color:#fde68a;font-size:11px;line-height:1.6'>Add your BTC address in the Settings tab to display it here.</div>"
-            "</div>"
-            "</div>"
-        )
-
-
 def render_tab_bar(count, active):
     """
     Renders the custom tab navigation bar HTML.
@@ -1525,7 +1485,6 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
 
                 gr.HTML(discord_banner_html())
                 gr.HTML(civitai_banner_html())
-                gr.HTML(btc_banner_html())
 
             with gr.Column(scale=2, min_width=300):
                 gr.Markdown("Model details")
@@ -2181,23 +2140,6 @@ def on_ui_tabs():
                     return ("API key saved." if ok else "Failed to save."), s["api_key"]
 
                 save_api_btn.click(fn=save_api_key, inputs=[api_key_input], outputs=[api_save_status, api_key_state])
-
-                gr.Markdown("Support")
-                btc_input = gr.Textbox(
-                    label="BTC address",
-                    placeholder="Paste your BTC address",
-                    value=settings.get("btc_address", ""),
-                )
-                save_btc_btn = gr.Button("💾 Save BTC address", variant="primary")
-                btc_save_status = gr.Textbox(label="", show_label=False, interactive=False, lines=1, placeholder="Save status")
-
-                def save_btc_address(addr):
-                    s = load_settings()
-                    s["btc_address"] = (addr or "").strip()
-                    ok = save_settings(s)
-                    return ("BTC address saved." if ok else "Failed to save.")
-
-                save_btc_btn.click(fn=save_btc_address, inputs=[btc_input], outputs=[btc_save_status])
 
                 gr.Markdown("Favorite Creators")
                 with gr.Row():
