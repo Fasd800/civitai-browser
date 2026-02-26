@@ -55,7 +55,7 @@ To avoid re-entering your data:
 
 ## Limitations
 - **Large Creator Catalogs**: When filtering by a creator who has published a large number of models (e.g., thousands), the initial load and search may take longer. This is because the extension fetches the creator's full catalog (up to a maximum of 5,000 models for safety reasons) to perform accurate local filtering and search.
-  - **Override at your own risk**: You can increase this limit by editing `scripts/civlens.py`. Search for `if pages >= 50 or len(all_loaded) >= 5000:` and increase the values. Note that extremely high limits may cause the WebUI to freeze or crash due to memory usage. I suggest to use all the filters available (like Type, Sort by, Period, Base Model and Tags)  in order to fetch the minor number of models possible.
+  - **Override at your own risk**: You can increase this limit by editing `scripts/civlens.py`. Search for `if pages >= 50 or len(all_loaded) >= 5000:` and increase the values. Be aware that setting very high limits may cause the WebUI to freeze or crash due to excessive memory usage. To avoid this, I strongly recommend using all available filters — such as Type, Sort by, Period, Base Model, and Tags — to narrow down the results and load the smallest possible number of models.
 - **API Rate Limits**: Frequent searches or downloads may trigger CivitAI's API rate limits, causing temporary delays.
 
 ## Compatibility
