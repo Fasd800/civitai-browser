@@ -31,7 +31,7 @@
      */
     function getInputValueById(id) {
         const root = getRoot();
-        const el = root.querySelector(`#${id} input, #${id} textarea`);
+        const el = root.querySelector(`#${id} input, #${id} textarea, #${id} select`);
         return el ? String(el.value || "") : "";
     }
 
@@ -43,7 +43,7 @@
      */
     function setInputValueById(id, value) {
         const root = getRoot();
-        const el = root.querySelector(`#${id} input, #${id} textarea`);
+        const el = root.querySelector(`#${id} input, #${id} textarea, #${id} select`);
         if (!el) return false;
         el.value = value;
         el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -266,6 +266,16 @@
         }
     }
 
+    function setDefaultPeriods() {
+        for (let i = 0; i < MAX_TABS; i += 1) {
+            const id = `civlens-period-${i}`;
+            const current = getInputValueById(id);
+            if (!current || current === "AllTime") {
+                setInputValueById(id, "Month");
+            }
+        }
+    }
+
     // Initialize observers and event listeners when the DOM is ready
     document.addEventListener("DOMContentLoaded", function () {
         const root = getRoot();
@@ -274,10 +284,12 @@
             attachSendToTabButtons();
             attachTabCloseButtons();
             updateAddTabDisabled();
+            setDefaultPeriods();
         });
         attachSendToTabButtons();
         attachTabCloseButtons();
         updateAddTabDisabled();
+        setDefaultPeriods();
         observer.observe(root, { childList: true, subtree: true });
         
         // Periodic check to ensure state consistency (especially during heavy UI loads)

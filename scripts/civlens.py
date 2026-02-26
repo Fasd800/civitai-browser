@@ -1349,6 +1349,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                                 label="Period",
                                 choices=["AllTime", "Year", "Month", "Week", "Day"],
                                 value="Month",
+                                elem_id=f"civlens-period-{i}",
                                 scale=2,
                             )
                             base_model = gr.Dropdown(
