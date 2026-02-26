@@ -270,7 +270,7 @@
         for (let i = 0; i < MAX_TABS; i += 1) {
             const id = `civlens-period-${i}`;
             const current = getInputValueById(id);
-            if (!current || current === "AllTime") {
+            if (!current) {
                 setInputValueById(id, "Month");
             }
         }
@@ -284,7 +284,6 @@
             attachSendToTabButtons();
             attachTabCloseButtons();
             updateAddTabDisabled();
-            setDefaultPeriods();
         });
         attachSendToTabButtons();
         attachTabCloseButtons();
