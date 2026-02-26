@@ -1419,7 +1419,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                     elem_id=f"civlens-gallery-{i}",
                     object_fit="contain",
                     interactive=False,
-                    allow_preview=True,
+                    allow_preview=False,
                 )
 
                 with gr.Row():
@@ -1532,14 +1532,13 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                 get_model_body_html(model, sel_version),
                 sel_url,
                 sd2,
-                gr.update(selected_index=int(evt.index))
             )
 
         gallery.select(
             fn=on_gallery_select,
             inputs=[search_data],
-            outputs=[model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data, gallery],
-        ).then(fn=None, js="() => { if(window.civlens_scroll_gallery) window.civlens_scroll_gallery(); }")
+            outputs=[model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data],
+        )
 
         def on_version_change(vc, sd):
             """Handle version dropdown changes."""
