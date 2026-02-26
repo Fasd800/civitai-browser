@@ -17,6 +17,7 @@ import json
 import re
 import threading
 import time
+import random
 import html
 from urllib.parse import urlparse
 from urllib3.util.retry import Retry
@@ -73,11 +74,14 @@ TYPE_COLORS = {
 
 # Request rate limiting and retry logic globals
 _LAST_REQ_TS = 0.0
-_RATE_MIN_INTERVAL = 0.5  # Seconds between requests
+_RATE_MIN_INTERVAL = 1.0  # Seconds between requests (increased for safety)
 _TAG_CACHE = {}  # Cache for tag resolution (query -> resolved name)
 
 # Configure a robust HTTP session with retries
 _SESSION = requests.Session()
+_SESSION.headers.update({
+    "User-Agent": "CivLens/1.0 (https://github.com/CivLens/CivLens; contact: discord) CivitAI-Browser-Extension"
+})
 _RETRY = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(["GET"]))
 _SESSION.mount("https://", HTTPAdapter(max_retries=_RETRY))
 _SESSION.mount("http://", HTTPAdapter(max_retries=_RETRY))
@@ -85,6 +89,7 @@ _SESSION.mount("http://", HTTPAdapter(max_retries=_RETRY))
 # Track active downloads to provide UI progress updates
 _DOWNLOAD_JOBS = {}
 _DOWNLOAD_JOBS_LOCK = threading.Lock()
+_RATE_LIMIT_LOCK = threading.Lock()  # Ensure rate limiting across multiple local tabs
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -147,23 +152,50 @@ def _safe_get(url, headers=None, params=None, timeout=15, stream=False):
     if not _is_allowed_url(url):
         raise ValueError("Blocked URL")
     global _LAST_REQ_TS
-    now = time.time()
-    wait = _RATE_MIN_INTERVAL - (now - _LAST_REQ_TS)
+    
+    # Calculate thread-safe rate limit wait time
+    # This prevents multiple tabs from sending requests at the exact same time
+    with _RATE_LIMIT_LOCK:
+        now = time.time()
+        # Add random jitter (0.1-0.6s) to prevent synchronized spikes from multiple users
+        jitter = random.uniform(0.1, 0.6)
+        target_ts = _LAST_REQ_TS + _RATE_MIN_INTERVAL + jitter
+        
+        wait = max(0.0, target_ts - now)
+        _LAST_REQ_TS = now + wait  # Reserve this time slot
+    
     if wait > 0:
         time.sleep(wait)
-    _LAST_REQ_TS = time.time()
     
-    r = _SESSION.get(url, headers=headers or {}, params=params, timeout=timeout, stream=stream)
-    
-    # Handle rate limiting (429) explicitly
-    if r.status_code == 429:
-        ra = r.headers.get("Retry-After")
-        try:
-            delay = float(ra)
-        except Exception:
-            delay = 2.0
-        time.sleep(min(delay, 5.0))
+    # Simple retry loop for 429 (Too Many Requests) or temporary server errors
+    for attempt in range(3):
         r = _SESSION.get(url, headers=headers or {}, params=params, timeout=timeout, stream=stream)
+        
+        if r.status_code == 429:
+            # Server says slow down
+            ra = r.headers.get("Retry-After")
+            try:
+                delay = float(ra)
+            except Exception:
+                delay = 5.0
+            # Add jitter to the retry delay to prevent thundering herd on retry
+            retry_wait = min(delay, 30.0) + random.uniform(0.5, 2.0)
+            time.sleep(retry_wait)
+            continue
+            
+        if r.status_code == 403:
+             # Cloudflare or other blocking (403 Forbidden).
+             # Retrying immediately is usually futile and looks like an attack.
+             # We raise immediately to stop the loop.
+             raise ValueError("Access Denied (403). Possible Cloudflare block or invalid API key.")
+
+        if r.status_code >= 500:
+            # Server error, wait a bit and retry
+            time.sleep(2.0 + random.uniform(0.5, 1.5))
+            continue
+            
+        # Success or client error (4xx other than 429), break loop
+        break
     
     r.raise_for_status()
     return r
