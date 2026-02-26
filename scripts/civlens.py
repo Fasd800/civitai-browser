@@ -1563,7 +1563,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             levels = sd.get("content_levels", [])
 
             return (
-                build_gallery_data(items2, levels),
+                gr.update(value=build_gallery_data(items2, levels), selected=idx),
                 get_model_header_html(m2, v),
                 build_trigger_words_html(get_trigger_words_for_version(v)),
                 get_model_body_html(m2, v),
