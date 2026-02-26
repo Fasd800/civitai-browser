@@ -285,4 +285,19 @@
             updateAddTabDisabled();
         }, 500);
     });
+
+    /**
+     * Publicly exposed function to scroll the selected gallery thumbnail into view.
+     * This is called from Python/Gradio when a gallery item is selected.
+     */
+    window.civlens_scroll_gallery = async () => {
+        await new Promise(r => setTimeout(r, 200));
+        const galleries = document.querySelectorAll('.gradio-gallery');
+        galleries.forEach(gallery => {
+            const selected = gallery.querySelector('.thumbnails button.selected, .grid-wrap button.selected');
+            if (selected) {
+                selected.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        });
+    };
 })();

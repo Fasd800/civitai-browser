@@ -1539,7 +1539,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             fn=on_gallery_select,
             inputs=[search_data],
             outputs=[model_header_html, version_selector, trigger_html, model_body_html, selected_url, search_data, gallery],
-        )
+        ).then(fn=None, js="() => { if(window.civlens_scroll_gallery) window.civlens_scroll_gallery(); }")
 
         def on_version_change(vc, sd):
             """Handle version dropdown changes."""
