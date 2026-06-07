@@ -31,8 +31,8 @@ from modules import shared, script_callbacks
 # =============================================================================
 
 # Base API endpoints for CivitAI
-CIVITAI_API = "https://civitai.com/api/v1"
-DOWNLOAD_URL = "https://civitai.com/api/download/models"
+CIVITAI_API = "https://civitai.red/api/v1"
+DOWNLOAD_URL = "https://civitai.red/api/download/models"
 
 # Extension directory paths
 EXTENSION_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,7 +107,8 @@ def _is_allowed_url(url: str) -> bool:
     if parsed.scheme != "https":
         return False
     host = (parsed.hostname or "").lower()
-    if not host or not host.endswith("civitai.com"):
+    allowed_hosts = ("civitai.com", "civitai.red")
+    if not host or not any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts):
         return False
     if parsed.username or parsed.password:
         return False
@@ -256,7 +257,7 @@ def parse_civitai_url(url: str):
     Returns (model_id, version_id) tuple.
     """
     url = url.strip()
-    m = re.search(r"civitai\.com/models/(\d+)", url)
+    m = re.search(r"civitai\.(?:com|red)/models/(\d+)", url)
     if not m:
         return None, None
     model_id = m.group(1)
@@ -801,7 +802,7 @@ def build_open_link_html(model, version=None):
     vid = ""
     if version:
         vid = version.get("id") or ""
-    url = f"https://civitai.com/models/{mid}" + (f"?modelVersionId={vid}" if vid else "")
+    url = f"https://civitai.red/models/{mid}" + (f"?modelVersionId={vid}" if vid else "")
     return (
         f"<a href='{url}' target='_blank' "
         "style='display:inline-flex;align-items:center;padding:3px 10px;background:#1e2d3d;border:1px solid #1d4ed8;"
@@ -1409,7 +1410,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                             )
                             base_model = gr.Dropdown(
                                 label="Base model",
-                                choices=["Any", "Pony", "Anima", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z Image Base", "Z Image turbo"],
+                                choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z Image Base", "Z Image turbo"],
                                 value="Any",
                                 scale=2,
                             )
@@ -1569,7 +1570,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             val = _version_label(sel_version) if sel_version else (choices[0] if choices else None)
             mid = model.get("id", "")
             vid = (sel_version or {}).get("id")
-            sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            sel_url = (f"https://civitai.red/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
 
             sd2 = dict(sd)
             sd2["selected_index"] = int(evt.index)
@@ -1608,7 +1609,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             v = get_version_by_choice(model, vc)
             mid = model.get("id", "")
             vid = (v or {}).get("id")
-            sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            sel_url = (f"https://civitai.red/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
             
             # Update the selected version ID in model data
             m2 = dict(model)
@@ -1691,7 +1692,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
             ver_val = _version_label(selected_ver) if selected_ver else (ver_choices[0] if ver_choices else None)
             mid = model.get("id", "")
             vid = (selected_ver or {}).get("id")
-            sel_url = (f"https://civitai.com/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
+            sel_url = (f"https://civitai.red/models/{mid}" if mid else "") + (f"?modelVersionId={vid}" if mid and vid else "")
             m2 = dict(model)
             m2["_civitai_selected_version_id"] = vid
 
