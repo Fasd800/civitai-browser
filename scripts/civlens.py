@@ -1410,7 +1410,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                             )
                             base_model = gr.Dropdown(
                                 label="Base model",
-                                choices=["Any", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z Image Base", "Z Image turbo"],
+                                choices=["Any", "Anima", "Pony", "Illustrious", "SDXL", "SD 1.5", "SD 2.1", "Flux", "Z Image Base", "Z Image turbo"],
                                 value="Any",
                                 scale=2,
                             )
