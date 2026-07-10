@@ -65,17 +65,6 @@ To avoid re-entering your data:
     To avoid this issue, I highly recommend using all the available filters — such as Type, Sort by, Period, Base Model, and Tags — to narrow down the results. This way, you can load the smallest possible number of models for way faster results.
 - **API Rate Limits**: Frequent searches or downloads may trigger CivitAI's API rate limits, causing temporary delays.
 
-## Compatibility
-- **Tested environment**:
-  - WebUI version: neo
-  - Python: 3.13.12
-  - PyTorch: 2.10.0+cu130
-  - flash: 2.8.3+cu130torch2.10
-  - xformers: 0.0.34
-  - gradio: 4.40.0
-- Other versions may work, but compatibility is not guaranteed.
-- If you notice that this extension interferes with other extensions or causes any issues, you can uninstall it by simply deleting the CivLens folder from the Extensions directory and restart the UI.
-
 ## Disclaimer
 This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
 
