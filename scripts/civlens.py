@@ -186,7 +186,7 @@ def _safe_get(url, headers=None, params=None, timeout=15, stream=False):
              # Cloudflare or other blocking (403 Forbidden).
              # Retrying immediately is usually futile and looks like an attack.
              # We raise immediately to stop the loop.
-             raise ValueError("Access Denied (403). Possible Cloudflare block or invalid API key.")
+             raise ValueError("Access Denied (403). Possible Cloudflare block or invalid API key. You can add you API key in the Settings Tab")
 
         if r.status_code >= 500:
             # Server error, wait a bit and retry
@@ -795,7 +795,7 @@ def _has_meaningful_html(html: str) -> bool:
 
 
 def build_open_link_html(model, version=None):
-    """Creates the 'Open on CivitAI' button link."""
+    """Creates the external CivitAI link."""
     mid = model.get("id", "")
     if not mid:
         return ""
@@ -805,14 +805,29 @@ def build_open_link_html(model, version=None):
     url = f"https://civitai.red/models/{mid}" + (f"?modelVersionId={vid}" if vid else "")
     return (
         f"<a href='{url}' target='_blank' "
-        "style='display:inline-flex;align-items:center;padding:3px 10px;background:#1e2d3d;border:1px solid #1d4ed8;"
-        "border-radius:999px;color:#60a5fa;font-size:12px;text-decoration:none;font-weight:700;white-space:nowrap'>"
-        "Open on CivitAI</a>"
+        "rel='noopener noreferrer' "
+        "style='display:inline-flex;align-items:center;gap:5px;padding:2px 0;color:#60a5fa;font-size:12px;"
+        "text-decoration:none;font-weight:700;white-space:nowrap'>"
+        "<span>Open on CivitAI</span><span aria-hidden='true' style='font-size:11px;line-height:1'>↗</span></a>"
     )
 
 
+def _get_stat_value(stats, *keys, default=0):
+    """Returns the first available numeric stat among the provided keys."""
+    for key in keys:
+        if key in stats and stats.get(key) is not None:
+            try:
+                return int(stats.get(key) or 0), True
+            except Exception:
+                try:
+                    return int(float(stats.get(key) or 0)), True
+                except Exception:
+                    return default, True
+    return default, False
+
+
 def get_model_header_html(model, version=None):
-    """Generates the model title card with badges and stats."""
+    """Generates the model details header with stats."""
     if not model:
         return ""
 
@@ -820,7 +835,8 @@ def get_model_header_html(model, version=None):
         version = model["modelVersions"][0]
 
     stats = model.get("stats", {}) or {}
-    downloads = stats.get("downloadCount", 0)
+    downloads, _ = _get_stat_value(stats, "downloadCount")
+    likes, has_likes = _get_stat_value(stats, "thumbsUpCount", "likeCount")
     rating = float(stats.get("rating", 0) or 0)
     ratingcnt = int(stats.get("ratingCount", 0) or 0)
     creator = _escape_html((model.get("creator") or {}).get("username", "NA"))
@@ -829,28 +845,42 @@ def get_model_header_html(model, version=None):
     typecolor = TYPE_COLORS.get(modeltype_raw, "#374151")
     model_name = _escape_html(model.get("name", "NA"))
 
+    def stat_chip(label, value, bg, border, color):
+        return (
+            f"<span style='background:{bg};border:1px solid {border};color:{color};"
+            "padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap'>"
+            f"{value:,} {label}</span>"
+        )
+
     stars = ""
     if ratingcnt > 0:
-        stars = (
-            "<span style='background:#2a2209;border:1px solid #92400e;color:#fbbf24;"
-            "padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>"
-            f"{rating:.1f} ★ ({ratingcnt:,})</span>"
+        stars = stat_chip(f"rating ({ratingcnt:,})", round(rating, 1), "#2a2209", "#92400e", "#fbbf24").replace(
+            f"{round(rating, 1):,} rating ({ratingcnt:,})", f"{rating:.1f} ★ ({ratingcnt:,})"
         )
+
+    stats_html = [
+        stat_chip("downloads", downloads, "#1a2e1a", "#166534", "#34d399"),
+    ]
+    if has_likes:
+        stats_html.append(stat_chip("likes", likes, "#2b1a2f", "#9333ea", "#e9d5ff"))
+    if stars:
+        stats_html.append(stars)
 
     open_link = build_open_link_html(model, version)
 
     return (
         "<div style='padding:12px 14px;font-family:sans-serif;color:#e0e0e0'>"
         "<div style='margin-bottom:10px'>"
-        "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px'>"
-        f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{model_name}</h3>"
-        "</div>"
-        "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap'>"
+        "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
-        f"<span style='background:#1e2d3d;border:1px solid #1d4ed8;color:#60a5fa;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{creator}</span>"
-        f"<span style='background:#1a2e1a;border:1px solid #166534;color:#34d399;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600'>{downloads:,} downloads</span>"
-        f"{stars}"
+        f"<span style='color:#cbd5e1;font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{creator}</span>"
+        "</div>"
+        "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap'>"
+        f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0'>{model_name}</h3>"
         f"{open_link}"
+        "</div>"
+        "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px'>"
+        f"{''.join(stats_html)}"
         "</div>"
         "</div>"
         "</div>"
@@ -1134,7 +1164,7 @@ def poll_download(panel_id):
     """Timer callback to fetch latest download progress for UI."""
     job = _download_job_snapshot(panel_id)
     if not job:
-        return gr.update(), gr.update(), gr.update(active=False)
+        return gr.update(), gr.update(), gr.update(active=False), gr.update(interactive=True), gr.update(interactive=False)
 
     filename = job.get("filename") or ""
     status = job.get("status", "")
@@ -1145,6 +1175,8 @@ def poll_download(panel_id):
 
     finished = bool(job.get("finished"))
     timer_update = gr.update(active=(not finished))
+    download_btn_update = gr.update(interactive=finished)
+    stop_btn_update = gr.update(interactive=(not finished))
 
     # Optimization: only send updates if something changed to reduce UI flicker
     key = _download_job_key(panel_id)
@@ -1153,12 +1185,12 @@ def poll_download(panel_id):
         last_progress = live.get("ui_last_progress", None)
         last_status = live.get("ui_last_status", None)
         if last_progress == progress_html and last_status == status:
-            return gr.update(), gr.update(), timer_update
+            return gr.update(), gr.update(), timer_update, download_btn_update, stop_btn_update
         live["ui_last_progress"] = progress_html
         live["ui_last_status"] = status
         _DOWNLOAD_JOBS[key] = live
 
-    return gr.update(value=progress_html), gr.update(value=status), timer_update
+    return gr.update(value=progress_html), gr.update(value=status), timer_update, download_btn_update, stop_btn_update
 
 
 def _download_worker(panel_id, model, version, api_key):
@@ -1358,9 +1390,9 @@ def start_download(search_data, version_choice, api_key, panel_id):
             )
         status = active_job.get("status") or f"Downloading: {active_name}"
         status = f"{status}\nAnother download is already in progress: {active_name}. Stop it before starting a new one."
-        return progress_html, status, gr.update(active=True)
+        return progress_html, status, gr.update(active=True), gr.update(interactive=False), gr.update(interactive=True)
 
-    return _render_progress_html(0, 0, 0, filename), f"Starting download: {filename}", gr.update(active=True)
+    return _render_progress_html(0, 0, 0, filename), f"Starting download: {filename}", gr.update(active=True), gr.update(interactive=False), gr.update(interactive=True)
 
 
 def stop_download(panel_id):
@@ -1369,10 +1401,10 @@ def stop_download(panel_id):
     with _DOWNLOAD_JOBS_LOCK:
         job = _DOWNLOAD_JOBS.get(key)
         if not job or job.get("finished") or not job.get("thread") or not job["thread"].is_alive():
-            return "", "No active download.", gr.update(active=False)
+            return "", "No active download.", gr.update(active=False), gr.update(interactive=True), gr.update(interactive=False)
         job["cancel_event"].set()
         job["status"] = "Stopping current download..."
-    return "", "Stopping current download...", gr.update(active=True)
+    return "", "Stopping current download...", gr.update(active=True), gr.update(interactive=False), gr.update(interactive=False)
 
 
 # =============================================================================
@@ -1520,7 +1552,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
 
                 with gr.Row():
                     download_btn = gr.Button("⬇️ Download", variant="primary", scale=2, min_width=150, elem_classes=["btn-download"])
-                    stop_btn = gr.Button("⏹️ Stop", variant="secondary", scale=1, min_width=80)
+                    stop_btn = gr.Button("⏹️ Stop", variant="secondary", scale=1, min_width=80, interactive=False)
                     send_tab_btn = gr.Button("📤 Send to Tab", variant="secondary", scale=1, min_width=120, elem_id=f"civlens-send-tab-{i}")
                 dl_progress_html = gr.HTML("")
 
@@ -1993,17 +2025,17 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
         download_btn.click(
             fn=start_download,
             inputs=[search_data, version_selector, api_key_state, panel_id_state],
-            outputs=[dl_progress_html, dl_status, dl_poll_timer],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer, download_btn, stop_btn],
         )
         stop_btn.click(
             fn=stop_download,
             inputs=[panel_id_state],
-            outputs=[dl_progress_html, dl_status, dl_poll_timer],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer, download_btn, stop_btn],
         )
         dl_poll_timer.tick(
             fn=poll_download,
             inputs=[panel_id_state],
-            outputs=[dl_progress_html, dl_status, dl_poll_timer],
+            outputs=[dl_progress_html, dl_status, dl_poll_timer, download_btn, stop_btn],
         )
 
     if close_tab_fn:
