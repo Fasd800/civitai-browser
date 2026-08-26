@@ -1319,31 +1319,46 @@ def start_download(search_data, version_choice, api_key, panel_id):
         return "", "No version found.", gr.update(active=False)
 
     key = _download_job_key(panel_id)
+    active_job = None
     with _DOWNLOAD_JOBS_LOCK:
         existing = _DOWNLOAD_JOBS.get(key)
         # Don't start if already running
         if existing and existing.get("thread") and existing["thread"].is_alive():
-            return poll_download(panel_id)
+            active_job = dict(existing)
+        else:
+            ver_id = version.get("id")
+            dl_url, filename = _pick_download_url_and_name(version)
+            if not filename:
+                filename = f"{model.get('id','model')}_{ver_id or 'latest'}.safetensors"
+            filename = _sanitize_filename(filename)
 
-        ver_id = version.get("id")
-        dl_url, filename = _pick_download_url_and_name(version)
-        if not filename:
-            filename = f"{model.get('id','model')}_{ver_id or 'latest'}.safetensors"
-        filename = _sanitize_filename(filename)
+            job = {
+                "filename": filename,
+                "done": 0,
+                "total": 0,
+                "percent": 0,
+                "status": f"Starting download: {filename}",
+                "finished": False,
+                "cancel_event": threading.Event(),
+            }
+            worker = threading.Thread(target=_download_worker, args=(panel_id, model, version, api_key), daemon=True)
+            job["thread"] = worker
+            _DOWNLOAD_JOBS[key] = job
+            worker.start()
 
-        job = {
-            "filename": filename,
-            "done": 0,
-            "total": 0,
-            "percent": 0,
-            "status": f"Starting download: {filename}",
-            "finished": False,
-            "cancel_event": threading.Event(),
-        }
-        worker = threading.Thread(target=_download_worker, args=(panel_id, model, version, api_key), daemon=True)
-        job["thread"] = worker
-        _DOWNLOAD_JOBS[key] = job
-        worker.start()
+    if active_job:
+        active_name = active_job.get("filename") or "current file"
+        progress_html = ""
+        if active_job.get("filename"):
+            progress_html = _render_progress_html(
+                active_job.get("percent", 0),
+                active_job.get("done", 0),
+                active_job.get("total", 0),
+                active_job["filename"],
+            )
+        status = active_job.get("status") or f"Downloading: {active_name}"
+        status = f"{status}\nAnother download is already in progress: {active_name}. Stop it before starting a new one."
+        return progress_html, status, gr.update(active=True)
 
     return _render_progress_html(0, 0, 0, filename), f"Starting download: {filename}", gr.update(active=True)
 
