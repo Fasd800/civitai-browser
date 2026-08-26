@@ -837,8 +837,6 @@ def get_model_header_html(model, version=None):
     stats = model.get("stats", {}) or {}
     downloads, _ = _get_stat_value(stats, "downloadCount")
     likes, has_likes = _get_stat_value(stats, "thumbsUpCount", "likeCount")
-    rating = float(stats.get("rating", 0) or 0)
-    ratingcnt = int(stats.get("ratingCount", 0) or 0)
     creator = _escape_html((model.get("creator") or {}).get("username", "NA"))
     modeltype_raw = model.get("type", "Other")
     modeltype = _escape_html(modeltype_raw)
@@ -852,19 +850,11 @@ def get_model_header_html(model, version=None):
             f"{value:,} {label}</span>"
         )
 
-    stars = ""
-    if ratingcnt > 0:
-        stars = stat_chip(f"rating ({ratingcnt:,})", round(rating, 1), "#2a2209", "#92400e", "#fbbf24").replace(
-            f"{round(rating, 1):,} rating ({ratingcnt:,})", f"{rating:.1f} ★ ({ratingcnt:,})"
-        )
-
     stats_html = [
         stat_chip("downloads", downloads, "#1a2e1a", "#166534", "#34d399"),
     ]
     if has_likes:
         stats_html.append(stat_chip("likes", likes, "#2b1a2f", "#9333ea", "#e9d5ff"))
-    if stars:
-        stats_html.append(stars)
 
     open_link = build_open_link_html(model, version)
 
@@ -873,13 +863,13 @@ def get_model_header_html(model, version=None):
         "<div style='margin-bottom:10px'>"
         "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<span style='background:{typecolor};color:#fff;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0'>{modeltype}</span>"
-        f"<span style='color:#cbd5e1;font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{creator}</span>"
         "</div>"
         "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap'>"
         f"<h3 style='margin:0;color:#fff;font-size:16px;line-height:1.3;flex:1;min-width:0'>{model_name}</h3>"
         f"{open_link}"
         "</div>"
         "<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px'>"
+        f"<span style='background:#1e3a8a;border:1px solid #2563eb;color:#dbeafe;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap'>{creator}</span>"
         f"{''.join(stats_html)}"
         "</div>"
         "</div>"
@@ -1428,7 +1418,7 @@ def make_panel_components(i, api_key_state, close_tab_fn=None):
                         query = gr.Textbox(
                             label="Search Query",
                             show_label=False,
-                            placeholder="Search by keyword...",
+                            placeholder="(Optional) Search by keyword...",
                             elem_id=f"civlens-query-{i}",
                             scale=5,
                         )
